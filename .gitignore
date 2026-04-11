@@ -1,0 +1,7 @@
+# Dependencies
+node_modules/
+
+# Environment variables
+/Code/config/.env.development
+/Code/config/.env.production
+/Code/node_modules

@@ -1,0 +1,272 @@
+import {
+  AnyKeys,
+  CreateOptions,
+  DeleteResult,
+  FlattenMaps,
+  HydratedDocument,
+  Model,
+  MongooseUpdateQueryOptions,
+  PopulateOptions,
+  ProjectionType,
+  QueryFilter,
+  QueryOptions,
+  Types,
+  UpdateQuery,
+  UpdateWithAggregationPipeline,
+  UpdateWriteOpResult,
+} from "mongoose";
+
+export class DatabaseRepository<TRawDocument> {
+  constructor(private readonly model: Model<TRawDocument>) {}
+
+  // ----------------------------------------Create method overloads----------------------------------------
+  // Create without options
+  async create({
+    data,
+  }: {
+    data: AnyKeys<TRawDocument>;
+  }): Promise<HydratedDocument<TRawDocument>[]>;
+
+  // Create with options
+  async create({
+    data,
+    options,
+  }: {
+    data: AnyKeys<TRawDocument>[];
+    options?: CreateOptions | undefined;
+  }): Promise<HydratedDocument<TRawDocument>[]>;
+
+  // Create with implementation
+  async create({
+    data,
+    options,
+  }: {
+    data: AnyKeys<TRawDocument>[];
+    options?: CreateOptions | undefined;
+  }): Promise<HydratedDocument<TRawDocument>[]> {
+    const result = await this.model.create(data as any, options);
+    return result;
+  }
+
+  // Create One
+  // async createOne({
+  //   data,
+  //   options = {},
+  // }: {
+  //   data: AnyKeys<TRawDocument>;
+  //   options?: CreateOptions | undefined;
+  //   }): Promise<HydratedDocument<TRawDocument>> {
+
+  //   const [user] = (await this.create({ data: [data], options })) || [];
+  //   return user as HydratedDocument<TRawDocument>;
+  // }
+
+  // ----------------------------------------Find method overloads----------------------------------------
+
+  // Find One & lean:false
+  async findOne({
+    filter,
+    projection,
+    options,
+  }: {
+    filter: QueryFilter<TRawDocument>;
+    projection?: ProjectionType<TRawDocument> | null | undefined;
+    options?: QueryOptions<TRawDocument> & { lean: false };
+  }): Promise<HydratedDocument<TRawDocument> | null>;
+
+  // Find One & lean:true
+  async findOne({
+    filter,
+    projection,
+    options,
+  }: {
+    filter: QueryFilter<TRawDocument>;
+    projection?: ProjectionType<TRawDocument> | null | undefined;
+    options?: QueryOptions<TRawDocument> & { lean: true };
+  }): Promise<FlattenMaps<TRawDocument> | null>;
+
+  // Find One implementation
+  async findOne({
+    filter = {},
+    projection,
+    options,
+  }: {
+    filter: QueryFilter<TRawDocument>;
+    projection?: ProjectionType<TRawDocument> | null | undefined;
+    options?: QueryOptions<TRawDocument>;
+  }): Promise<
+    FlattenMaps<TRawDocument> | HydratedDocument<TRawDocument> | null
+  > {
+    let doc = this.model.findOne(filter, projection, options);
+
+    if (options?.populate) {
+       doc.populate(options.populate as PopulateOptions);
+    }
+    if (options?.lean) {
+       doc.lean(options.lean) as any;
+    }
+    return await doc.exec();
+  }
+
+  // ----------------------------------------Find BY ID -----------------------------------
+
+  // Find By Id
+  async findById({
+    _id,
+    projection,
+    options,
+  }: {
+    _id: Types.ObjectId;
+    projection?: ProjectionType<TRawDocument> | null | undefined;
+    options?: QueryOptions<TRawDocument> & { lean: false };
+  }): Promise<HydratedDocument<TRawDocument> | null>;
+
+  async findById({
+    _id,
+    projection,
+    options,
+  }: {
+    _id: Types.ObjectId;
+    projection?: ProjectionType<TRawDocument> | null | undefined;
+    options?: QueryOptions<TRawDocument> & { lean: true };
+  }): Promise<FlattenMaps<TRawDocument> | null>;
+
+  async findById({
+    _id,
+    projection,
+    options,
+  }: {
+    _id: Types.ObjectId;
+    projection?: ProjectionType<TRawDocument> | null | undefined;
+    options?: QueryOptions<TRawDocument>;
+  }): Promise<
+    HydratedDocument<TRawDocument> | FlattenMaps<TRawDocument> | null
+  > {
+    let doc = this.model.findById(_id, projection);
+    if (options?.populate) {
+     doc.populate(options.populate as PopulateOptions);
+    }
+    if (options?.lean) {
+       doc.lean(options.lean);
+    }
+    return await doc.exec();
+  }
+
+// ------------------------------- Find & Update / Find & Delete -------------------------------
+
+  // find one and update
+  async findOneAndUpdate({
+    filter = {},
+    update,
+    options,
+  }: {
+    filter: QueryFilter<TRawDocument>;
+    update: UpdateQuery<TRawDocument> | UpdateWithAggregationPipeline;
+    options?: MongooseUpdateQueryOptions<TRawDocument>;
+  }): Promise<HydratedDocument<TRawDocument> | null> {
+    return await this.model.findOneAndUpdate(filter, update, options);
+  }
+
+  // find one and delete
+  async findOneAndDelete({
+    filter = {},
+    options,
+  }: {
+    filter: QueryFilter<TRawDocument>;
+    options?: QueryOptions<TRawDocument>;
+  }): Promise<HydratedDocument<TRawDocument> | null> {
+    return await this.model.findOneAndDelete(filter, options);
+  }
+
+  // Find By Id And Delete
+  async findByIdAndDelete({
+    _id,
+    options,
+  }: {
+    _id: Types.ObjectId;
+    options?: QueryOptions<TRawDocument> | undefined;
+  }): Promise<HydratedDocument<TRawDocument> | null> {
+    const result = await this.model.findByIdAndDelete(_id, options);
+    return result;
+  }
+
+  // ----------------------------------------Update method overloads----------------------------------------
+
+  // Update one
+  async updateOne({
+    filter = {},
+    update,
+    options,
+  }: {
+    filter: QueryFilter<TRawDocument>;
+    update: UpdateQuery<TRawDocument> | UpdateWithAggregationPipeline;
+    options?: MongooseUpdateQueryOptions<TRawDocument>;
+  }): Promise<UpdateWriteOpResult> {
+    return await this.model.updateOne(filter, update, options);
+  }
+
+  // Update Many
+  async updateMany({
+    filter = {},
+    update,
+    options,
+  }: {
+    filter: QueryFilter<TRawDocument>;
+    update: UpdateQuery<TRawDocument> | UpdateWithAggregationPipeline;
+    options?: MongooseUpdateQueryOptions<TRawDocument>;
+  }): Promise<UpdateWriteOpResult> {
+    return await this.model.updateMany(filter, update, options);
+  }
+
+  // Update By Id
+  async updateById({
+    _id,
+    update,
+    options,
+  }: {
+    _id: Types.ObjectId;
+    update: UpdateQuery<TRawDocument> | UpdateWithAggregationPipeline;
+    options?: MongooseUpdateQueryOptions<TRawDocument>;
+  }): Promise<UpdateWriteOpResult> {
+    return await this.model.updateOne({ _id }, update, options);
+  }
+
+  // Find By Id And Update
+  async findByIdAndUpdate({
+    _id,
+    update,
+    options,
+  }: {
+    _id: Types.ObjectId;
+    update: UpdateQuery<TRawDocument>;
+    options?: QueryOptions<TRawDocument> | undefined;
+  }): Promise<HydratedDocument<TRawDocument> | null> {
+    const result = await this.model.findByIdAndUpdate(_id, update, options);
+    return result;
+  }
+
+  // ----------------------------------------Delete method overloads----------------------------------------
+
+  // Delete One
+  async deleteOne({
+    filter = {},
+  }: {
+    filter: QueryFilter<TRawDocument>;
+  }): Promise<DeleteResult> {
+    return await this.model.deleteOne(filter);
+  }
+
+  // Delete Many
+  async deleteMany({
+    filter = {},
+  }: {
+    filter: QueryFilter<TRawDocument>;
+  }): Promise<DeleteResult> {
+    return await this.model.deleteMany(filter);
+  }
+
+  // Delete By Id
+  async deleteById({ _id }: { _id: Types.ObjectId }): Promise<DeleteResult> {
+    return await this.model.deleteOne({ _id });
+  }
+}

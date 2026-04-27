@@ -1,4 +1,5 @@
 
+import { Types } from 'mongoose';
 import { z } from 'zod';
 
 export const generalValidationFields = {
@@ -25,5 +26,9 @@ export const generalValidationFields = {
   otp: z
     .string({ error: "OTP is required" })
     .regex(/^\d{6}$/, { error: "OTP must be 6 digits" }),
+  
+  id: z.string().refine((id) => Types.ObjectId.isValid(id), { error: "Invalid ID" }),
+
+  content: z.string().min(2, { error: "Content is too short" }).max(1000, { error: "Content is too long" }).optional(),
 };
 

@@ -1,6 +1,7 @@
 import { model, models, Schema } from "mongoose";
 import { IUser } from "../../common/interfaces";
 import { GenderEnum, ProviderEnum, RoleEnum } from "../../common/enums";
+import { encrypt, generateHash } from "../../common/utils";
 
 
 const userSchema = new Schema<IUser>({
@@ -27,6 +28,9 @@ const userSchema = new Schema<IUser>({
     DOB: { type: Date },
     confirmEmail: { type: Date },
 
+    deletedAt: { type: Date},
+    restoredAt: { type: Date },
+
 
 }, {
     timestamps: true,
@@ -46,5 +50,45 @@ userSchema.virtual('username').set(function (value: string) {
     return `${this.firstName} ${this.lastName}`
 })
 
+
+userSchema.pre("save", async function () {
+    if (this.isModified("password")) {
+       this.password = await generateHash({plaintext: this.password })
+   }
+    if (this.isModified("phone")) {
+        this.phone = await encrypt(this.phone!)
+    }
+})
+  
+userSchema.post("save", async function () {
+    console.log(this);
+})
+
+
+userSchema.pre(["deleteOne", "findOneAndDelete"], function () {
+
+    const query = this.getQuery()
+    if (query.force === true) {
+        this.setQuery({ ...query })
+    } else {
+        this.setQuery({ deletedAt: { $exists: true}, ...query })
+    }
+
+})
+
+// userSchema.post(["updateOne", "findOneAndUpdate"], function () {
+//     console.log("The Update",this.getUpdate());
+// })
+
+
+// userSchema.pre(["updateOne", "findOneAndUpdate"], function () {
+
+//     const query = this.getQuery()
+
+//     this.setQuery({ ...query, deletedAt: { $exists: false } })
+
+//     console.log(this.getQuery());
+
+// })
 
 export const UserModel = models.User || model<IUser>('User', userSchema)

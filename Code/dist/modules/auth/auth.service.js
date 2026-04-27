@@ -65,8 +65,8 @@ class AuthenticationService {
             data: {
                 username,
                 email,
-                password: await (0, security_1.generateHash)({ plaintext: password }),
-                phone: (0, security_1.encrypt)(phone),
+                password,
+                phone,
                 provider: enums_1.ProviderEnum.SYSTEM,
             },
         });

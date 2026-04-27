@@ -104,8 +104,8 @@ class AuthenticationService{
             data: {
                 username,
                 email,
-                password: await generateHash({ plaintext: password }),
-                phone: encrypt(phone),
+                password,
+                phone,
                 provider: ProviderEnum.SYSTEM,
                 // otpCode: await generateHash(otp),
                 // otpExpiresAt: expiresAt,

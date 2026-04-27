@@ -25,4 +25,7 @@ export interface IUser {
 
     createdAt: Date,
     updatedAt: Date,
+    deletedAt?: Date | undefined,
+    restoredAt?: Date | undefined,
+
 }

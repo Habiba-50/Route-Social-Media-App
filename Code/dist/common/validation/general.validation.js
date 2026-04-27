@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.generalValidationFields = void 0;
+const mongoose_1 = require("mongoose");
 const zod_1 = require("zod");
 exports.generalValidationFields = {
     email: zod_1.z.email(),
@@ -20,4 +21,6 @@ exports.generalValidationFields = {
     otp: zod_1.z
         .string({ error: "OTP is required" })
         .regex(/^\d{6}$/, { error: "OTP must be 6 digits" }),
+    id: zod_1.z.string().refine((id) => mongoose_1.Types.ObjectId.isValid(id), { error: "Invalid ID" }),
+    content: zod_1.z.string().min(2, { error: "Content is too short" }).max(1000, { error: "Content is too long" }).optional(),
 };

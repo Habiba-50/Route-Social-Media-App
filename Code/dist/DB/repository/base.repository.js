@@ -10,8 +10,21 @@ class DatabaseRepository {
         const result = await this.model.create(data, options);
         return result;
     }
+    async insertMany({ data }) {
+        return await this.model.insertMany(data);
+    }
     async findOne({ filter = {}, projection, options, }) {
         let doc = this.model.findOne(filter, projection, options);
+        if (options?.populate) {
+            doc.populate(options.populate);
+        }
+        if (options?.lean) {
+            doc.lean(options.lean);
+        }
+        return await doc.exec();
+    }
+    async findAll({ filter = {}, projection, options, }) {
+        let doc = this.model.find(filter, projection, options);
         if (options?.populate) {
             doc.populate(options.populate);
         }
@@ -31,7 +44,7 @@ class DatabaseRepository {
         return await doc.exec();
     }
     async findOneAndUpdate({ filter = {}, update, options, }) {
-        return await this.model.findOneAndUpdate(filter, update, options);
+        return await this.model.findOneAndUpdate(filter, { ...update, $inc: { __v: 1 } }, options);
     }
     async findOneAndDelete({ filter = {}, options, }) {
         return await this.model.findOneAndDelete(filter, options);
@@ -41,10 +54,11 @@ class DatabaseRepository {
         return result;
     }
     async updateOne({ filter = {}, update, options, }) {
-        return await this.model.updateOne(filter, update, options);
+        const result = await this.model.updateOne(filter, { ...update, $inc: { __v: 1 } }, options);
+        return result;
     }
     async updateMany({ filter = {}, update, options, }) {
-        return await this.model.updateMany(filter, update, options);
+        return await this.model.updateMany(filter, { ...update, $inc: { __v: 1 } }, options);
     }
     async updateById({ _id, update, options, }) {
         return await this.model.updateOne({ _id }, update, options);
@@ -53,11 +67,11 @@ class DatabaseRepository {
         const result = await this.model.findByIdAndUpdate(_id, update, options);
         return result;
     }
-    async deleteOne({ filter = {}, }) {
-        return await this.model.deleteOne(filter);
+    async deleteOne({ filter = {}, options, }) {
+        return await this.model.deleteOne(filter, options);
     }
-    async deleteMany({ filter = {}, }) {
-        return await this.model.deleteMany(filter);
+    async deleteMany({ filter = {}, options, }) {
+        return await this.model.deleteMany(filter, options);
     }
     async deleteById({ _id }) {
         return await this.model.deleteOne({ _id });

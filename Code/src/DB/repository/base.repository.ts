@@ -61,6 +61,16 @@ export class DatabaseRepository<TRawDocument> {
   //   return user as HydratedDocument<TRawDocument>;
   // }
 
+  // ----------------------------------------InsertMany method----------------------------------------
+
+  async insertMany({
+    data
+  }: {
+    data: AnyKeys<TRawDocument>[]
+  }): Promise<HydratedDocument<TRawDocument>[]> {
+    return await this.model.insertMany(data as any) as HydratedDocument<TRawDocument>[]
+  }
+
   // ----------------------------------------Find method overloads----------------------------------------
 
   // Find One & lean:false
@@ -98,6 +108,29 @@ export class DatabaseRepository<TRawDocument> {
     FlattenMaps<TRawDocument> | HydratedDocument<TRawDocument> | null
   > {
     let doc = this.model.findOne(filter, projection, options);
+
+    if (options?.populate) {
+       doc.populate(options.populate as PopulateOptions);
+    }
+    if (options?.lean) {
+       doc.lean(options.lean) as any;
+    }
+    return await doc.exec();
+  }
+  // ----------------------------------------- Find ------------------------------------
+
+  async findAll({
+    filter = {},
+    projection,
+    options,
+  }: {
+    filter?: QueryFilter<TRawDocument>;
+    projection?: ProjectionType<TRawDocument> | null | undefined;
+    options?: QueryOptions<TRawDocument>;
+  }): Promise<
+    FlattenMaps<TRawDocument>[] | HydratedDocument<TRawDocument>[] | null
+  > {
+    let doc = this.model.find(filter, projection, options);
 
     if (options?.populate) {
        doc.populate(options.populate as PopulateOptions);
@@ -164,7 +197,7 @@ export class DatabaseRepository<TRawDocument> {
     update: UpdateQuery<TRawDocument> | UpdateWithAggregationPipeline;
     options?: MongooseUpdateQueryOptions<TRawDocument>;
   }): Promise<HydratedDocument<TRawDocument> | null> {
-    return await this.model.findOneAndUpdate(filter, update, options);
+    return await this.model.findOneAndUpdate(filter, {...update, $inc: {__v: 1}}, options);
   }
 
   // find one and delete
@@ -202,7 +235,8 @@ export class DatabaseRepository<TRawDocument> {
     update: UpdateQuery<TRawDocument> | UpdateWithAggregationPipeline;
     options?: MongooseUpdateQueryOptions<TRawDocument>;
   }): Promise<UpdateWriteOpResult> {
-    return await this.model.updateOne(filter, update, options);
+    const result = await this.model.updateOne(filter, { ...update, $inc: { __v: 1 } }, options);
+    return result;
   }
 
   // Update Many
@@ -215,7 +249,7 @@ export class DatabaseRepository<TRawDocument> {
     update: UpdateQuery<TRawDocument> | UpdateWithAggregationPipeline;
     options?: MongooseUpdateQueryOptions<TRawDocument>;
   }): Promise<UpdateWriteOpResult> {
-    return await this.model.updateMany(filter, update, options);
+    return await this.model.updateMany(filter, { ...update, $inc: { __v: 1 } }, options);
   }
 
   // Update By Id
@@ -250,19 +284,23 @@ export class DatabaseRepository<TRawDocument> {
   // Delete One
   async deleteOne({
     filter = {},
+    options,
   }: {
-    filter: QueryFilter<TRawDocument>;
+      filter: QueryFilter<TRawDocument>;
+      options?: QueryOptions<TRawDocument>;
   }): Promise<DeleteResult> {
-    return await this.model.deleteOne(filter);
+    return await this.model.deleteOne(filter, options as any);
   }
 
   // Delete Many
   async deleteMany({
     filter = {},
+    options,
   }: {
     filter: QueryFilter<TRawDocument>;
+    options?: QueryOptions<TRawDocument>;
   }): Promise<DeleteResult> {
-    return await this.model.deleteMany(filter);
+    return await this.model.deleteMany(filter, options as any);
   }
 
   // Delete By Id

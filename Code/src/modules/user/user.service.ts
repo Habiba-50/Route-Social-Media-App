@@ -1,4 +1,4 @@
-import { HydratedDocument } from "mongoose";
+import { HydratedDocument, Types } from "mongoose";
 import { IUser } from "../../common/interfaces";
 import { decrypt } from "../../common/utils";
 import { JwtPayload } from "jsonwebtoken";
@@ -165,18 +165,20 @@ export class UserService {
 
 
   // ------------------------------------------Delete User-------------------------------------------
-  public async deleteUser(userId: string ): Promise<boolean> {
+  public async deleteUser(userId: string , user: HydratedDocument<IUser>): Promise<boolean> {
 
-    const user = await this.userRepository.findOne({ filter: { _id: userId } })
-    if (!user) {
+    const id = userId ? userId as unknown as Types.ObjectId : user._id
+    const userToDel = await this.userRepository.findOne({ filter: { _id: id } })
+    if (!userToDel) {
       throw new conflictException("User not found")
     }
     
-    if (user.deletedAt) {
+    if (userToDel.deletedAt) {
       throw new conflictException("User already deleted")
     }
+
     await this.userRepository.updateOne({
-      filter: { _id: userId },
+      filter: { _id: id },
       update: {
         deletedAt: new Date(),
         $unset: { restoredAt: 1 }
@@ -187,17 +189,19 @@ export class UserService {
   }
 
   // ------------------------------------------Restore User-------------------------------------------
-  public async restoreUser(userId: string): Promise<boolean> {
-    const user = await this.userRepository.findOne({ filter: { _id: userId } })
-    console.log(user)
-    if (!user) {
+  public async restoreUser(userId: string , user: HydratedDocument<IUser>): Promise<boolean> {
+
+    const id = userId ? userId as unknown as Types.ObjectId : user._id
+    const userToRestore = await this.userRepository.findOne({ filter: { _id: id } })
+    
+    if (!userToRestore) {
       throw new conflictException("User not found")
     }
-    if (!user.deletedAt) {
-      throw new conflictException("User is not deleted")
+    if (!userToRestore.deletedAt) {
+      throw new conflictException("User is not deleted!")
     }
     await this.userRepository.updateOne({
-      filter: { _id: userId },
+      filter: { _id: id },
       update: {
         $unset: { deletedAt: 1 },
         restoredAt: new Date()
@@ -236,13 +240,16 @@ export class UserService {
 
   // ------------------------------------------ Hard Delete User -------------------------------------------
 
-  public async hardDeleteUser(userId: string, force: string): Promise<boolean> {
+  public async hardDeleteUser(userId: string, force: boolean): Promise<boolean> {
     const user = await this.userRepository.findOne({ filter: { _id: userId } })
     if(!user) {
       throw new conflictException("User not found")
     }
-    if(user.deletedAt ||  force === "true") {
-      const result = await this.userRepository.deleteOne({ filter: { _id: user._id }, options: { force: true } })
+    if (user.deletedAt || force) {
+      const result = await this.userRepository.deleteOne({
+        filter: { _id: user._id, ...(force && { force: true }) }
+      });
+      
       return result.deletedCount > 0
     } else {
       throw new conflictException("User is not deleted, pass force=true to delete user permanently")

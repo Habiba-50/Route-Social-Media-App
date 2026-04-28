@@ -35,12 +35,12 @@ router.patch("/cover-images", (0, authentication_middleware_1.authentication)(),
     const data = await user_service_1.default.profileCoverImages(req.user, req.files);
     return (0, response_1.successResponse)({ res, data });
 });
-router.delete("/delete/:userId", (0, authentication_middleware_1.authentication)(), (0, authentication_middleware_1.authorization)(user_authorization_1.userAuthorization.getAllUsers), async (req, res, next) => {
-    const data = await user_service_1.default.deleteUser(req.params.userId);
+router.delete("/delete/{:userId}", (0, authentication_middleware_1.authentication)(), (0, authentication_middleware_1.authorization)(user_authorization_1.userAuthorization.profile), async (req, res, next) => {
+    const data = await user_service_1.default.deleteUser(req.params?.userId, req.user);
     return (0, response_1.successResponse)({ res, statusCode: 200, message: "User deleted successfully", data });
 });
-router.patch("/restore/:userId", (0, authentication_middleware_1.authentication)(), (0, authentication_middleware_1.authorization)(user_authorization_1.userAuthorization.getAllUsers), async (req, res, next) => {
-    const data = await user_service_1.default.restoreUser(req.params.userId);
+router.patch("/restore/{:userId}", (0, authentication_middleware_1.authentication)(), (0, authentication_middleware_1.authorization)(user_authorization_1.userAuthorization.profile), async (req, res, next) => {
+    const data = await user_service_1.default.restoreUser(req.params?.userId, req.user);
     return (0, response_1.successResponse)({ res, statusCode: 200, message: "User restored successfully", data });
 });
 router.get("/all", (0, authentication_middleware_1.authentication)(), (0, authentication_middleware_1.authorization)(user_authorization_1.userAuthorization.getAllUsers), async (req, res, next) => {
@@ -59,8 +59,9 @@ router.patch("/update", (0, authentication_middleware_1.authentication)(), async
     const data = await user_service_1.default.updateProfile(req.user, req.body);
     return (0, response_1.successResponse)({ res, statusCode: 200, data });
 });
-router.delete("/destroy/:userId", (0, authentication_middleware_1.authentication)(), (0, authentication_middleware_1.authorization)(user_authorization_1.userAuthorization.getAllUsers), async (req, res, next) => {
-    await user_service_1.default.hardDeleteUser(req.params.userId, req.body.force);
+router.delete("/destroy/:userId/{permanent}", (0, authentication_middleware_1.authentication)(), (0, authentication_middleware_1.authorization)(user_authorization_1.userAuthorization.getAllUsers), async (req, res, next) => {
+    const force = req.query.force === "true";
+    await user_service_1.default.hardDeleteUser(req.params.userId, force);
     return (0, response_1.successResponse)({ res, statusCode: 200, message: "User deleted successfully" });
 });
 exports.default = router;

@@ -68,10 +68,14 @@ userSchema.post("save", async function () {
 userSchema.pre(["deleteOne", "findOneAndDelete"], function () {
 
     const query = this.getQuery()
-    if (query.force === true) {
-        this.setQuery({ ...query })
+    const { force, ...restQuery } = query
+
+    if (force === true) {
+        // Hard delete: remove the `force` field so MongoDB doesn't try to match it
+        this.setQuery(restQuery)
     } else {
-        this.setQuery({ deletedAt: { $exists: true}, ...query })
+        // Soft-delete guard: only delete documents that are already soft-deleted
+        this.setQuery({ deletedAt: { $exists: true }, ...restQuery })
     }
 
 })

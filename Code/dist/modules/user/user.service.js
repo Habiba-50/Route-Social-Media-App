@@ -100,16 +100,17 @@ class UserService {
         }
         return user.toJSON();
     }
-    async deleteUser(userId) {
-        const user = await this.userRepository.findOne({ filter: { _id: userId } });
-        if (!user) {
+    async deleteUser(userId, user) {
+        const id = userId ? userId : user._id;
+        const userToDel = await this.userRepository.findOne({ filter: { _id: id } });
+        if (!userToDel) {
             throw new exceptions_1.conflictException("User not found");
         }
-        if (user.deletedAt) {
+        if (userToDel.deletedAt) {
             throw new exceptions_1.conflictException("User already deleted");
         }
         await this.userRepository.updateOne({
-            filter: { _id: userId },
+            filter: { _id: id },
             update: {
                 deletedAt: new Date(),
                 $unset: { restoredAt: 1 }
@@ -117,17 +118,17 @@ class UserService {
         });
         return true;
     }
-    async restoreUser(userId) {
-        const user = await this.userRepository.findOne({ filter: { _id: userId } });
-        console.log(user);
-        if (!user) {
+    async restoreUser(userId, user) {
+        const id = userId ? userId : user._id;
+        const userToRestore = await this.userRepository.findOne({ filter: { _id: id } });
+        if (!userToRestore) {
             throw new exceptions_1.conflictException("User not found");
         }
-        if (!user.deletedAt) {
-            throw new exceptions_1.conflictException("User is not deleted");
+        if (!userToRestore.deletedAt) {
+            throw new exceptions_1.conflictException("User is not deleted!");
         }
         await this.userRepository.updateOne({
-            filter: { _id: userId },
+            filter: { _id: id },
             update: {
                 $unset: { deletedAt: 1 },
                 restoredAt: new Date()
@@ -159,8 +160,10 @@ class UserService {
         if (!user) {
             throw new exceptions_1.conflictException("User not found");
         }
-        if (user.deletedAt || force === "true") {
-            const result = await this.userRepository.deleteOne({ filter: { _id: user._id }, options: { force: true } });
+        if (user.deletedAt || force) {
+            const result = await this.userRepository.deleteOne({
+                filter: { _id: user._id, ...(force && { force: true }) }
+            });
             return result.deletedCount > 0;
         }
         else {

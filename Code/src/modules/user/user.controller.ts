@@ -7,6 +7,7 @@ import { userAuthorization } from "./user.authorization";
 import {  StorageApproachEnum, TokenTypeEnum } from "../../common/enums";
 import { cloudFileUpload, fileFieldValidation } from "../../common/utils/multer";
 import { IUser } from "../../common/interfaces";
+import { HydratedDocument } from "mongoose";
 
 
 
@@ -85,21 +86,21 @@ router.patch("/cover-images",
 )
 
 // ---------------------------------- Delete User---------------------------------------
-router.delete("/delete/:userId",
+router.delete("/delete/{:userId}",
     authentication(),
-    authorization(userAuthorization.getAllUsers),
+    authorization(userAuthorization.profile),
     async (req: Request, res: Response, next: NextFunction) => {
-        const data = await userService.deleteUser(req.params.userId as string)
+        const data = await userService.deleteUser(req.params?.userId as string ,req.user as HydratedDocument<IUser>)
         return successResponse({res , statusCode:200 , message:"User deleted successfully" , data})
     }
 )
 
 // ---------------------------------- Restore User---------------------------------------
-router.patch("/restore/:userId",
+router.patch("/restore/{:userId}",
     authentication(),
-    authorization(userAuthorization.getAllUsers),
+    authorization(userAuthorization.profile),
     async (req: Request, res: Response, next: NextFunction) => {
-        const data = await userService.restoreUser(req.params.userId as string)
+        const data = await userService.restoreUser(req.params?.userId as string, req.user as HydratedDocument<IUser>)
         return successResponse({res , statusCode:200 , message:"User restored successfully" ,data})
     }
 )
@@ -144,11 +145,12 @@ router.patch("/update",
 )
 
 // ---------------------------------- Force Delete User---------------------------------------
-router.delete("/destroy/:userId",
+router.delete("/destroy/:userId/{permanent}",
     authentication(),
     authorization(userAuthorization.getAllUsers),
     async (req: Request, res: Response, next: NextFunction) => {
-        await userService.hardDeleteUser(req.params.userId as string, req.body.force as string )
+        const force = req.query.force === "true";
+        await userService.hardDeleteUser(req.params.userId as string, force as boolean)
         return successResponse({res , statusCode:200 , message:"User deleted successfully"})
     }
 )

@@ -53,11 +53,12 @@ userSchema.post("save", async function () {
 });
 userSchema.pre(["deleteOne", "findOneAndDelete"], function () {
     const query = this.getQuery();
-    if (query.force === true) {
-        this.setQuery({ ...query });
+    const { force, ...restQuery } = query;
+    if (force === true) {
+        this.setQuery(restQuery);
     }
     else {
-        this.setQuery({ deletedAt: { $exists: true }, ...query });
+        this.setQuery({ deletedAt: { $exists: true }, ...restQuery });
     }
 });
 exports.UserModel = mongoose_1.models.User || (0, mongoose_1.model)('User', userSchema);

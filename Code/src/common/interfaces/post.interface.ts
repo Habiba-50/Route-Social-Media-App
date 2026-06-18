@@ -1,12 +1,22 @@
 import { Types } from "mongoose";
+import { IUser } from "./user.interface";
+import { AvailabilityEnum } from "../enums";
+
 
 export interface IPost{
+    folderId: string;
     content?: string;
-    attachments?: {secure_url:string,public_id:string}[];
-    likes?: Types.ObjectId[];
+    files?: string[];
+
+    likes?: {userId: Types.ObjectId, react: number}[];
     tags?: Types.ObjectId[];
-    createdBy?: Types.ObjectId;
-    updatedBy?: Types.ObjectId;
-    createdAt?: Date;
+    availability: AvailabilityEnum;
+
+    createdBy: Types.ObjectId | IUser;
+    updatedBy: Types.ObjectId | IUser;
+
+    createdAt: Date;
     updatedAt?: Date;
+    deletedAt?: Date;
+    restoredAt?: Date;
 }

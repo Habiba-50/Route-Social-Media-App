@@ -33,6 +33,21 @@ class DatabaseRepository {
         }
         return await doc.exec();
     }
+    async paginate({ filter, projection, options = {}, page = 0, size = 5, }) {
+        let count = -1;
+        if (Number(page) > 0) {
+            page = Number(page);
+            size = Number(size);
+            options.skip = (page - 1) * size;
+            options.limit = size;
+            count = await this.model.countDocuments(filter || {});
+        }
+        const docs = await this.findAll({ filter: filter || {}, projection, options });
+        return {
+            docs: docs,
+            ...(Number(page) > 0 ? { currentPage: Number(page), size: Number(size), pages: Math.ceil(count / Number(size)) } : {})
+        };
+    }
     async findById({ _id, projection, options, }) {
         let doc = this.model.findById(_id, projection);
         if (options?.populate) {
@@ -44,6 +59,9 @@ class DatabaseRepository {
         return await doc.exec();
     }
     async findOneAndUpdate({ filter = {}, update, options, }) {
+        if (Array.isArray(update)) {
+            return await this.model.findOneAndUpdate(filter, update, { ...options, updatePipeline: true });
+        }
         return await this.model.findOneAndUpdate(filter, { ...update, $inc: { __v: 1 } }, options);
     }
     async findOneAndDelete({ filter = {}, options, }) {
@@ -61,7 +79,7 @@ class DatabaseRepository {
         return await this.model.updateMany(filter, { ...update, $inc: { __v: 1 } }, options);
     }
     async updateById({ _id, update, options, }) {
-        return await this.model.updateOne({ _id }, update, options);
+        return await this.model.updateOne({ _id }, { ...update, $inc: { __v: 1 } }, options);
     }
     async findByIdAndUpdate({ _id, update, options, }) {
         const result = await this.model.findByIdAndUpdate(_id, update, options);

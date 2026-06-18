@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.validation = void 0;
+exports.normalizePostUpdate = exports.validation = void 0;
 const exceptions_1 = require("../common/exceptions");
 const validation = (schema) => {
     return (req, res, next) => {
@@ -8,7 +8,11 @@ const validation = (schema) => {
         for (const key of Object.keys(schema)) {
             if (!schema[key])
                 continue;
-            const validationResult = schema[key].safeParse(req[key]);
+            if (key === 'body' && req.file) {
+                req.body.file = req.file;
+            }
+            const reqValue = key === 'files' ? req.files : req[key];
+            const validationResult = schema[key].safeParse(reqValue);
             if (!validationResult.success) {
                 const error = validationResult.error;
                 console.log({ error });
@@ -28,3 +32,19 @@ const validation = (schema) => {
     };
 };
 exports.validation = validation;
+const normalizePostUpdate = (req, res, next) => {
+    if (req.body.removeFiles &&
+        typeof req.body.removeFiles === "string") {
+        try {
+            req.body.removeFiles = JSON.parse(req.body.removeFiles);
+        }
+        catch {
+            req.body.removeFiles = [
+                req.body.removeFiles
+            ];
+        }
+    }
+    console.log(req.body.removeFiles);
+    next();
+};
+exports.normalizePostUpdate = normalizePostUpdate;

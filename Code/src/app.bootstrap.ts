@@ -1,5 +1,5 @@
 import express, { NextFunction } from 'express';
-import { authRouter, postRouter, userRouter } from './modules';
+import { authRouter, notificationRouter, postRouter, userRouter } from './modules';
 import { globalErrorHandler } from './middleware';
 import { port } from './config/config';
 import { connectDB } from './DB/connection.db';
@@ -20,12 +20,29 @@ const bootstrap = async () => {
         // res => return 
     });
 
+    // Test Notification API 
+    // Add your FCM token in req.body.token and visit /send-notification to test the notification
+    // app.post('/send-notification' , async (req: express.Request, res: express.Response, next: NextFunction): Promise<express.Response> => {
+    //     await notificationService.sendNotification({
+    //         token: req.body.token as string,
+    //         title: " ",
+    //         body : "Hello World"
+    //     })
+
+    //     return successResponse({
+    //         res,
+    //         message : "Notification sent successfully",
+    //         data : {}
+    //     })
+    // });
+
     // Middleware to parse JSON bodies
     app.use(express.json());
 
     // Application Routing
     app.use("/auth", authRouter);
     app.use("/user", userRouter);
+    app.use("/notification", notificationRouter);
     app.use("/post", postRouter);
     app.get("/uploads/*path", async (req: express.Request, res: express.Response, next: NextFunction): Promise<any> => {
         const {download , filename} = req.query as { download?: string , filename?: string }

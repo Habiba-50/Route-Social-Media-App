@@ -27,7 +27,13 @@ export const validation = (schema: schemaType) => {
 
            if(!schema[key]) continue;  // Skip this iteration if the schema for the current key is not defined
 
-            const validationResult = schema[key].safeParse((req as any)[key] );
+            if (key === 'body' && req.file) {
+                req.body.file = req.file;
+            }
+            
+            // For 'files' key, validate req.files directly (multer populates req.files, not req[files])
+            const reqValue = key === 'files' ? req.files : (req as any)[key];
+            const validationResult = schema[key].safeParse(reqValue);
             if (!validationResult.success) {
                 const error = validationResult.error as ZodError;
                 console.log({error});
@@ -49,3 +55,33 @@ export const validation = (schema: schemaType) => {
         next()
     }
 }
+
+
+export const normalizePostUpdate = (
+    req: Request,
+    res: Response,
+    next: NextFunction
+) => {
+
+    if (
+        req.body.removeFiles &&
+        typeof req.body.removeFiles === "string"
+    ) {
+        try {
+
+            req.body.removeFiles = JSON.parse(
+                req.body.removeFiles
+            );
+
+        } catch {
+
+            req.body.removeFiles = [
+                req.body.removeFiles
+            ];
+        }
+    }
+
+    console.log(req.body.removeFiles);
+
+    next();
+};

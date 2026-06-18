@@ -1,25 +1,39 @@
 import { model, models, Schema, Types } from "mongoose"
 import { IPost } from "../../common/interfaces"
+import { AvailabilityEnum } from "../../common/enums"
 
 
 const postSchema = new Schema<IPost>({
+    folderId: {
+        type: String
+   },
     content: {
         type: String,
         minLength: 2,
         maxLength: 50000,
         trim: true,
         required: function () {
-            return this.attachments?.length ? false : true
+            return this.files?.length ? false : true
         }
     },
-    attachments: {
-        type: [{ secure_url: String, public_id: String }],
-        default: []
+    files: {
+        type: [String]
     },
-    likes: [{ type: Types.ObjectId, ref: "User" }],
+    availability: {
+        type: Number,
+        enum: AvailabilityEnum,
+        default: AvailabilityEnum.PUBLIC
+    },
+    likes: [{ userId: { type: Types.ObjectId, ref: "User" }, react: { type: Number } }],
     tags: [{ type: Types.ObjectId, ref: "User" }],
-    createdBy: { type: Types.ObjectId, ref: "User" },
+    createdBy: { type: Types.ObjectId, ref: "User", required: true },
     updatedBy: { type: Types.ObjectId, ref: "User" },
+    deletedAt : {
+        type: Date
+    },
+    restoredAt : {
+        type: Date
+    }
 }, {
     timestamps: true,
     toJSON: { virtuals: true },
@@ -28,5 +42,21 @@ const postSchema = new Schema<IPost>({
     strictQuery: true,
     collection: 'SOCIAL_MEDIA_APP_POSTS'
 })
+
+postSchema.pre(["deleteOne", "findOneAndDelete"], function () {
+
+    const query = this.getQuery()
+    const { force, ...restQuery } = query
+
+    if (force === true) {
+        // Hard delete: remove the `force` field so MongoDB doesn't try to match it
+        this.setQuery(restQuery)
+    } else {
+        // Soft-delete guard: only delete documents that are already soft-deleted
+        this.setQuery({ deletedAt: { $exists: true }, ...restQuery })
+    }
+
+})
+
 
 export const PostModel = models.Post || model<IPost>('Post', postSchema)

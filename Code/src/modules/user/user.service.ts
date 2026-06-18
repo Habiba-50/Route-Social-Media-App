@@ -9,6 +9,7 @@ import { LogoutEnum, StorageApproachEnum, UploadApproachEnum } from "../../commo
 import { UserRepository } from "../../DB/repository";
 
 
+
 export class UserService {
   private readonly userRepository: UserRepository
   private readonly tokenService: TokenService;
@@ -119,20 +120,20 @@ export class UserService {
     { ContentType, Originalname }: { ContentType: string, Originalname: string })
     : Promise<{ presignedUrl: string, user: HydratedDocument<IUser> }> {
     
-    const oldPic = user.profilePicture
+    // const oldPic = user.profilePicture
 
-    const { presignedUrl, Key } = await this.s3.createPresignedUploadLink({
+    const { presignedUrl} = await this.s3.createPresignedUploadLink({
       path: `Users/${user._id.toString()}/Profile`,
       ContentType,
       Originalname,
     })
 
-    if(oldPic) {
-      await this.s3.deleteAsset({ Key: oldPic })
-    }
+    // if(oldPic) {
+    //   await this.s3.deleteAsset({ Key: oldPic })
+    // }
 
-    user.profilePicture = Key as string
-    await user.save()
+    // user.profilePicture = Key as string
+    // await user.save()
 
     return {
       presignedUrl,
@@ -238,22 +239,43 @@ export class UserService {
     return updatedUser
   }
 
-  // ------------------------------------------ Hard Delete User -------------------------------------------
+  // ------------------------------------------ Hard Delete Profile -------------------------------------------
 
   public async hardDeleteUser(userId: string, force: boolean): Promise<boolean> {
+    
     const user = await this.userRepository.findOne({ filter: { _id: userId } })
-    if(!user) {
-      throw new conflictException("User not found")
+    
+    if (!user) {
+      throw new conflictException("Invalid Account!")
     }
+
     if (user.deletedAt || force) {
       const result = await this.userRepository.deleteOne({
         filter: { _id: user._id, ...(force && { force: true }) }
       });
-      
+
+      await this.s3.deleteFolderByPrefix({ Prefix: `Users/${user._id.toString()}` })
+
+      // ...(force && { force: true }) => If force is true then add force:true to the filter else do nothing
+      // ...(true && { force: true }) => { force: true }
+      // {
+      //    _id: user._id,
+      //    force: true
+      // }
+
+      // If ...(force && { force: true }) => false
+      // ...(false && { force: true }) => {}
+      //{
+      //   _id: user._id
+      // }
+ 
       return result.deletedCount > 0
+
     } else {
       throw new conflictException("User is not deleted, pass force=true to delete user permanently")
     }
+
+
   }
 }
 

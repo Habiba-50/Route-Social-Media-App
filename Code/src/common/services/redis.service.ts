@@ -190,6 +190,35 @@ export class RedisService {
     }
   }
 
+  // ------------------------ FCM (Notification) ------------------------
+
+  FCM_key(userId : string) {
+  return `user:FCM:${userId}`;
+}
+
+  public async addFCM(userId: string, FCMToken: string) {
+  return await this.client.sAdd(this.FCM_key(userId), FCMToken);
+}
+
+  public async removeFCM(userId: string, FCMToken: string) {
+  return await this.client.sRem(this.FCM_key(userId), FCMToken);
+}
+
+  public async getFCMs(userId: string) {
+  return await this.client.sMembers(this.FCM_key(userId));
+}
+
+  public async hasFCMs(userId: string) {
+  return await this.client.sCard(this.FCM_key(userId));
+}
+
+  public async removeFCMUser(userId: string) {
+  return await this.client.del(this.FCM_key(userId));
+}
+
+
+
+
 
 
 }

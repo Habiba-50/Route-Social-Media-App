@@ -15,6 +15,7 @@ import {
   UpdateWithAggregationPipeline,
   UpdateWriteOpResult,
 } from "mongoose";
+import { IPaginate } from "../../common/interfaces";
 
 export class DatabaseRepository<TRawDocument> {
   constructor(private readonly model: Model<TRawDocument>) {}
@@ -141,6 +142,41 @@ export class DatabaseRepository<TRawDocument> {
     return await doc.exec();
   }
 
+  // ---------------------------------------- Paginate -----------------------------------
+
+  async paginate({
+    filter ,
+    projection,
+    options = {},
+    page = 0,
+    size = 5,
+  }: {
+    filter?: QueryFilter<TRawDocument>;
+    projection?: ProjectionType<TRawDocument> | null | undefined;
+    options?: QueryOptions<TRawDocument>;
+    page?: number | string | undefined;
+    size?: number | string | undefined;
+  }): Promise<IPaginate<TRawDocument>> {    
+    
+    let count: number = -1
+    
+    if (Number(page) > 0) {
+      page = Number(page);
+      size = Number(size);
+      options.skip = (page - 1) * size;
+      options.limit = size;
+      count = await this.model.countDocuments(filter || {}) as number;
+    }
+    
+    const docs = await this.findAll({filter: filter || {} , projection, options});
+
+    return {
+      docs: docs as HydratedDocument<TRawDocument>[],
+      ...(Number(page) > 0 ? { currentPage: Number(page), size: Number(size), pages: Math.ceil(count / Number(size)) } : {})    };
+  }
+
+ 
+
   // ----------------------------------------Find BY ID -----------------------------------
 
   // Find By Id
@@ -195,8 +231,11 @@ export class DatabaseRepository<TRawDocument> {
   }: {
     filter: QueryFilter<TRawDocument>;
     update: UpdateQuery<TRawDocument> | UpdateWithAggregationPipeline;
-    options?: MongooseUpdateQueryOptions<TRawDocument>;
-  }): Promise<HydratedDocument<TRawDocument> | null> {
+    options?: QueryOptions<TRawDocument>;
+    }): Promise<HydratedDocument<TRawDocument> | null> {
+    if (Array.isArray(update)) {
+       return await this.model.findOneAndUpdate(filter, update, {...options, updatePipeline:true});
+    }
     return await this.model.findOneAndUpdate(filter, {...update, $inc: {__v: 1}}, options);
   }
 
@@ -262,7 +301,7 @@ export class DatabaseRepository<TRawDocument> {
     update: UpdateQuery<TRawDocument> | UpdateWithAggregationPipeline;
     options?: MongooseUpdateQueryOptions<TRawDocument>;
   }): Promise<UpdateWriteOpResult> {
-    return await this.model.updateOne({ _id }, update, options);
+    return await this.model.updateOne({ _id }, { ...update, $inc: { __v: 1 } }, options);
   }
 
   // Find By Id And Update

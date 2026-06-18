@@ -1,10 +1,10 @@
 import { OAuth2Client } from "google-auth-library";
 import { EmailEnum, ProviderEnum } from "../../common/enums";
 import {  conflictException, NotFoundException } from "../../common/exceptions";
-import { RedisService, redisService, TokenService } from "../../common/services";
+import { NotificationService, RedisService, redisService, TokenService } from "../../common/services";
 import { createNumberOtp } from "../../common/utils";
 import { emailEmitter, emailTemplate, sendEmail } from "../../common/utils/email";
-import { compareHash, encrypt, generateHash } from "../../common/utils/security";
+import { compareHash, generateHash } from "../../common/utils/security";
 import { UserRepository } from "../../DB/repository";
 import { LoginDto, SignupDto } from "./auth.dto";
 import { WEB_CLIENT_ID } from "../../config/config";
@@ -15,12 +15,15 @@ class AuthenticationService{
     private userRepository: UserRepository;
     private redis: RedisService;
     private tokenService: TokenService;
+    private notificationService : NotificationService;
+    
     
 
     constructor() { 
         this.userRepository = new UserRepository()
         this.redis = redisService
         this.tokenService = new TokenService()
+        this.notificationService = new NotificationService()
     }
 
     // public login (data: LoginDto): any { 
@@ -247,7 +250,7 @@ class AuthenticationService{
 
     public async login (inputs: LoginDto , issuer:string ) : Promise<{access_token : string , refresh_token : string}> {
 
-        const {email , password} = inputs
+        const {email , password , fcm} = inputs
         const user = await this.userRepository.findOne({
             filter: { email, provider: ProviderEnum.SYSTEM },
         });
@@ -262,6 +265,19 @@ class AuthenticationService{
 
         if (!(await compareHash(password, user.password))) {
             throw new conflictException("Invalid password");
+        }
+
+        if (fcm) {
+            await this.redis.addFCM(user._id as unknown as string, fcm);
+            const tokens = await this.redis.getFCMs(user._id as unknown as string);
+            if (tokens?.length > 0) {
+                await this.notificationService.sendNotifications({
+                    tokens: tokens,
+                    title: "Login",
+                    body: `New login at ${new Date()}`
+                })
+            }
+            
         }
 
         return await this.tokenService.createLoginCredentials({ user, issuer });

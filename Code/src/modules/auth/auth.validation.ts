@@ -2,10 +2,16 @@ import { z } from 'zod';
 import { generalValidationFields } from '../../common/validation';
 import { GenderEnum } from '../../common/enums';
 
-export const login = {
+export const email = {
     body: z.strictObject({
         email: generalValidationFields.email,
+    })
+}
+
+export const login = {
+    body: email.body.safeExtend({
         password: generalValidationFields.password,
+        fcm: z.string().optional(),
     }).catchall(z.string())
 }
 
@@ -27,24 +33,18 @@ export const signup = {
 }
 
 export const confirmEmail = {
-    body: z.strictObject({
-        email: generalValidationFields.email,
+    body: email.body.safeExtend({
         otp: generalValidationFields.otp,
-    }).catchall(z.string())
+    })
 }
 
-export const email = {
-    body: z.strictObject({
-        email: generalValidationFields.email,
-    }).catchall(z.string())
-}
+
 
 export const resetPassword = {
-    body: z.strictObject({
-        email: generalValidationFields.email,
+    body: email.body.safeExtend({
         password: generalValidationFields.password,
         confirmPassword: generalValidationFields.confirmPassword,
-    }).catchall(z.string()).refine((data) => {
+    }).refine((data) => {
         return data.password === data.confirmPassword
     } , {
         error: "Passwords don't match",   

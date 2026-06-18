@@ -1,13 +1,18 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.resetPassword = exports.email = exports.confirmEmail = exports.signup = exports.login = void 0;
+exports.resetPassword = exports.confirmEmail = exports.signup = exports.login = exports.email = void 0;
 const zod_1 = require("zod");
 const validation_1 = require("../../common/validation");
 const enums_1 = require("../../common/enums");
-exports.login = {
+exports.email = {
     body: zod_1.z.strictObject({
         email: validation_1.generalValidationFields.email,
+    })
+};
+exports.login = {
+    body: exports.email.body.safeExtend({
         password: validation_1.generalValidationFields.password,
+        fcm: zod_1.z.string().optional(),
     }).catchall(zod_1.z.string())
 };
 exports.signup = {
@@ -26,22 +31,15 @@ exports.signup = {
     })
 };
 exports.confirmEmail = {
-    body: zod_1.z.strictObject({
-        email: validation_1.generalValidationFields.email,
+    body: exports.email.body.safeExtend({
         otp: validation_1.generalValidationFields.otp,
-    }).catchall(zod_1.z.string())
-};
-exports.email = {
-    body: zod_1.z.strictObject({
-        email: validation_1.generalValidationFields.email,
-    }).catchall(zod_1.z.string())
+    })
 };
 exports.resetPassword = {
-    body: zod_1.z.strictObject({
-        email: validation_1.generalValidationFields.email,
+    body: exports.email.body.safeExtend({
         password: validation_1.generalValidationFields.password,
         confirmPassword: validation_1.generalValidationFields.confirmPassword,
-    }).catchall(zod_1.z.string()).refine((data) => {
+    }).refine((data) => {
         return data.password === data.confirmPassword;
     }, {
         error: "Passwords don't match",

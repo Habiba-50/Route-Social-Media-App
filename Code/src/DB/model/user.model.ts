@@ -2,6 +2,7 @@ import { model, models, Schema } from "mongoose";
 import { IUser } from "../../common/interfaces";
 import { GenderEnum, ProviderEnum, RoleEnum } from "../../common/enums";
 import { encrypt, generateHash } from "../../common/utils";
+import { Types } from "mongoose";
 
 
 const userSchema = new Schema<IUser>({
@@ -19,6 +20,8 @@ const userSchema = new Schema<IUser>({
     phone: { type: String , required:true},
     profilePicture: { type: String },
     profileCoveredPictures: { type: [String] },
+
+    friends: [{type:Types.ObjectId, ref:'User'}],
 
     gender: { type: Number, enum: GenderEnum, default: GenderEnum.MALE },
     role: { type: Number, enum: RoleEnum, default: RoleEnum.USER },
@@ -61,7 +64,7 @@ userSchema.pre("save", async function () {
 })
   
 userSchema.post("save", async function () {
-    console.log(this);
+    // console.log(this);
 })
 
 

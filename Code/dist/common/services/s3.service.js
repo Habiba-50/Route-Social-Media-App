@@ -23,7 +23,7 @@ class S3Service {
         this.storageApproach = multer_enum_1.StorageApproachEnum.MEMORY;
     }
     async uploadAsset({ Bucket = config_1.AWS_BUCKET_NAME, file, path = "general", ACL = client_s3_1.ObjectCannedACL.private, ContentType, storageApproach = this.storageApproach, }) {
-        const key = `${config_1.APPLICATION_NAME}/${path}/${(0, crypto_1.randomUUID)()}-${file.originalname}`;
+        const key = `${config_1.APPLICATION_NAME}/${path}/${file.originalname}`;
         const command = new client_s3_1.PutObjectCommand({
             Bucket: config_1.AWS_BUCKET_NAME,
             Key: key,
@@ -65,7 +65,7 @@ class S3Service {
         });
         return (await uploadFile.done());
     }
-    async uploadAssets({ uploadApproach = multer_enum_1.UploadApproachEnum.SMALL, storageApproach = multer_enum_1.StorageApproachEnum.DISK, Bucket = config_1.AWS_BUCKET_NAME, files, path = "general", ACL = client_s3_1.ObjectCannedACL.private, ContentType, }) {
+    async uploadAssets({ uploadApproach = multer_enum_1.UploadApproachEnum.SMALL, storageApproach = multer_enum_1.StorageApproachEnum.MEMORY, Bucket = config_1.AWS_BUCKET_NAME, files, path = "general", ACL = client_s3_1.ObjectCannedACL.private, ContentType, }) {
         let urls = [];
         if (uploadApproach === multer_enum_1.UploadApproachEnum.LARGE) {
             const data = await Promise.all(files.map(async (file) => {
@@ -81,7 +81,7 @@ class S3Service {
             urls = data.map((ele) => ele.Key);
         }
         else {
-            await Promise.all(files.map(async (file) => {
+            const data = await Promise.all(files.map(async (file) => {
                 return await this.uploadAsset({
                     storageApproach,
                     Bucket,
@@ -91,6 +91,8 @@ class S3Service {
                     ContentType
                 });
             }));
+            console.log({ data });
+            urls = data.map((ele) => ele);
         }
         return urls;
     }
@@ -140,6 +142,21 @@ class S3Service {
             }
         });
         return await this.client.send(command);
+    }
+    async listFolderDir({ Bucket = config_1.AWS_BUCKET_NAME, Prefix, }) {
+        const command = new client_s3_1.ListObjectsV2Command({
+            Bucket,
+            Prefix: `${config_1.APPLICATION_NAME}/${Prefix}`,
+        });
+        return await this.client.send(command);
+    }
+    async deleteFolderByPrefix({ Bucket = config_1.AWS_BUCKET_NAME, Prefix, }) {
+        const result = await this.listFolderDir({ Bucket, Prefix });
+        const keys = result.Contents?.map((content) => ({ Key: content.Key }));
+        if (keys?.length > 0) {
+            await this.deleteAssets({ Keys: keys, Bucket });
+        }
+        return result;
     }
 }
 exports.S3Service = S3Service;

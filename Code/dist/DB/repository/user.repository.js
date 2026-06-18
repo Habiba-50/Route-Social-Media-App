@@ -7,5 +7,8 @@ class UserRepository extends base_repository_1.DatabaseRepository {
     constructor() {
         super(user_model_1.UserModel);
     }
+    async countDocuments(filter) {
+        return user_model_1.UserModel.countDocuments(filter);
+    }
 }
 exports.UserRepository = UserRepository;

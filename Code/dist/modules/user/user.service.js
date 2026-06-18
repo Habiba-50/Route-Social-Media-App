@@ -69,17 +69,11 @@ class UserService {
         return user.toJSON();
     }
     async profileImagePresignedUrl(user, { ContentType, Originalname }) {
-        const oldPic = user.profilePicture;
-        const { presignedUrl, Key } = await this.s3.createPresignedUploadLink({
+        const { presignedUrl } = await this.s3.createPresignedUploadLink({
             path: `Users/${user._id.toString()}/Profile`,
             ContentType,
             Originalname,
         });
-        if (oldPic) {
-            await this.s3.deleteAsset({ Key: oldPic });
-        }
-        user.profilePicture = Key;
-        await user.save();
         return {
             presignedUrl,
             user
@@ -158,12 +152,13 @@ class UserService {
     async hardDeleteUser(userId, force) {
         const user = await this.userRepository.findOne({ filter: { _id: userId } });
         if (!user) {
-            throw new exceptions_1.conflictException("User not found");
+            throw new exceptions_1.conflictException("Invalid Account!");
         }
         if (user.deletedAt || force) {
             const result = await this.userRepository.deleteOne({
                 filter: { _id: user._id, ...(force && { force: true }) }
             });
+            await this.s3.deleteFolderByPrefix({ Prefix: `Users/${user._id.toString()}` });
             return result.deletedCount > 0;
         }
         else {

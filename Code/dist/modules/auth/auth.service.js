@@ -13,10 +13,12 @@ class AuthenticationService {
     userRepository;
     redis;
     tokenService;
+    notificationService;
     constructor() {
         this.userRepository = new repository_1.UserRepository();
         this.redis = services_1.redisService;
         this.tokenService = new services_1.TokenService();
+        this.notificationService = new services_1.NotificationService();
     }
     async sendEmailOtp(email, subject = enums_1.EmailEnum.ConfirmEmail, title) {
         const isBlocked = await this.redis.get(this.redis.blockOtpKey({ email, subject }));
@@ -152,7 +154,7 @@ class AuthenticationService {
     }
     ;
     async login(inputs, issuer) {
-        const { email, password } = inputs;
+        const { email, password, fcm } = inputs;
         const user = await this.userRepository.findOne({
             filter: { email, provider: enums_1.ProviderEnum.SYSTEM },
         });
@@ -164,6 +166,17 @@ class AuthenticationService {
         }
         if (!(await (0, security_1.compareHash)(password, user.password))) {
             throw new exceptions_1.conflictException("Invalid password");
+        }
+        if (fcm) {
+            await this.redis.addFCM(user._id, fcm);
+            const tokens = await this.redis.getFCMs(user._id);
+            if (tokens?.length > 0) {
+                await this.notificationService.sendNotifications({
+                    tokens: tokens,
+                    title: "Login",
+                    body: `New login at ${new Date()}`
+                });
+            }
         }
         return await this.tokenService.createLoginCredentials({ user, issuer });
     }

@@ -21,6 +21,7 @@ const bootstrap = async () => {
     app.use(express_1.default.json());
     app.use("/auth", modules_1.authRouter);
     app.use("/user", modules_1.userRouter);
+    app.use("/notification", modules_1.notificationRouter);
     app.use("/post", modules_1.postRouter);
     app.get("/uploads/*path", async (req, res, next) => {
         const { download, filename } = req.query;

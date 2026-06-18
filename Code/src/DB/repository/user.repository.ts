@@ -3,7 +3,11 @@ import { UserModel } from "../model/user.model";
 import { DatabaseRepository } from "./base.repository";
 
 export class UserRepository extends DatabaseRepository<IUser> {
-    constructor() {
-        super(UserModel);
-    }
+  constructor() {
+    super(UserModel);
+  }
+
+  async countDocuments(filter:any): Promise<number> {
+    return UserModel.countDocuments(filter);
+  }
 }

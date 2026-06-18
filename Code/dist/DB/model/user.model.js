@@ -4,6 +4,7 @@ exports.UserModel = void 0;
 const mongoose_1 = require("mongoose");
 const enums_1 = require("../../common/enums");
 const utils_1 = require("../../common/utils");
+const mongoose_2 = require("mongoose");
 const userSchema = new mongoose_1.Schema({
     firstName: { type: String, required: true },
     lastName: { type: String, required: true },
@@ -17,6 +18,7 @@ const userSchema = new mongoose_1.Schema({
     phone: { type: String, required: true },
     profilePicture: { type: String },
     profileCoveredPictures: { type: [String] },
+    friends: [{ type: mongoose_2.Types.ObjectId, ref: 'User' }],
     gender: { type: Number, enum: enums_1.GenderEnum, default: enums_1.GenderEnum.MALE },
     role: { type: Number, enum: enums_1.RoleEnum, default: enums_1.RoleEnum.USER },
     provider: { type: Number, enum: enums_1.ProviderEnum, default: enums_1.ProviderEnum.GOOGLE },
@@ -49,7 +51,6 @@ userSchema.pre("save", async function () {
     }
 });
 userSchema.post("save", async function () {
-    console.log(this);
 });
 userSchema.pre(["deleteOne", "findOneAndDelete"], function () {
     const query = this.getQuery();

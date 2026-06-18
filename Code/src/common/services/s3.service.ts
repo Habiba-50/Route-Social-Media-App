@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, ObjectCannedACL, CompleteMultipartUploadCommandOutput, GetObjectCommand, GetObjectCommandOutput, DeleteObjectCommandOutput, DeleteObjectCommand, DeleteObjectsCommandOutput, DeleteObjectsCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, ObjectCannedACL, CompleteMultipartUploadCommandOutput, GetObjectCommand, GetObjectCommandOutput, DeleteObjectCommandOutput, DeleteObjectCommand, DeleteObjectsCommandOutput, DeleteObjectsCommand, ListObjectsV2Command, ListObjectsV2CommandOutput } from "@aws-sdk/client-s3";
 import { createReadStream } from "fs"; // Used for disk storage [1]
 import { APPLICATION_NAME, AWS_ACCESS_KEY_ID, AWS_BUCKET_NAME, AWS_EXPIRES_IN, AWS_REGION, AWS_SECRET_ACCESS_KEY } from "../../config/config";
 import { randomUUID } from "crypto";
@@ -40,8 +40,9 @@ export class S3Service {
     storageApproach?: StorageApproachEnum;
   }) {
     
-    const key = `${APPLICATION_NAME}/${path}/${randomUUID()}-${file.originalname}`;
+    const key = `${APPLICATION_NAME}/${path}/${file.originalname}`;
     // console.log(path);
+    // ${randomUUID()}-
 
     const command = new PutObjectCommand({
       Bucket: AWS_BUCKET_NAME,
@@ -115,54 +116,126 @@ export class S3Service {
 
   }
 
+  // async uploadAssets({
+  //   uploadApproach = UploadApproachEnum.SMALL,
+  //   storageApproach = StorageApproachEnum.MEMORY,
+  //   Bucket = AWS_BUCKET_NAME,
+  //   files,
+  //   path = "general",
+  //   ACL = ObjectCannedACL.private,
+  //   ContentType,
+  // }: {
+  //   uploadApproach?: UploadApproachEnum
+  //   storageApproach?: StorageApproachEnum
+  //   Bucket?: string;
+  //   files : Express.Multer.File[],
+  //   path?: string;
+  //   ACL?: ObjectCannedACL;
+  //   ContentType?: string | undefined;
+  //   }) : Promise<string[]> {
+    
+  //   let urls: string[] = []
+
+  //   if (uploadApproach === UploadApproachEnum.LARGE) {
+  //     const data = await Promise.all(files.map(async (file: Express.Multer.File) => {
+  //       return await this.uploadLargeAsset({
+  //         storageApproach,
+  //         Bucket,
+  //         file,
+  //         path,
+  //         ACL,
+  //         ContentType
+  //       })
+  //     }))
+  //     urls = data.map((ele) => ele.Key as string)
+
+  //   } else {
+  //     const data = await Promise.all(
+  //       files.map(async (file: Express.Multer.File) => {
+  //         return await this.uploadAsset({
+  //           storageApproach,
+  //           Bucket,
+  //           file,
+  //           path,
+  //           ACL,
+  //           ContentType
+  //         })
+  //       })
+  //     )
+
+  //     console.log({data})
+
+  //     urls = data.map((ele) => ele as string)
+
+  //   }
+
+  //   return urls
+  // }
+
   async uploadAssets({
     uploadApproach = UploadApproachEnum.SMALL,
-    storageApproach = StorageApproachEnum.DISK,
+    storageApproach = StorageApproachEnum.MEMORY,
     Bucket = AWS_BUCKET_NAME,
     files,
     path = "general",
     ACL = ObjectCannedACL.private,
     ContentType,
+
   }: {
-    uploadApproach : UploadApproachEnum
-    storageApproach : StorageApproachEnum
-    Bucket?: string;
-    files : Express.Multer.File[],
-    path?: string;
-    ACL?: ObjectCannedACL;
-    ContentType?: string | undefined;
-    }) : Promise<string[]> {
-    
-    let urls: string[] = []
+    uploadApproach?: UploadApproachEnum
+    storageApproach?: StorageApproachEnum
+    Bucket?: string
+    files: Express.Multer.File[]
+    path?: string
+    ACL?: ObjectCannedACL
+    ContentType?: string | undefined
+
+  }): Promise<string[]> {
+
+    let urls: string[] = [];
 
     if (uploadApproach === UploadApproachEnum.LARGE) {
-      const data = await Promise.all(files.map(async (file: Express.Multer.File) => {
-        return await this.uploadLargeAsset({
-          storageApproach,
-          Bucket,
-          file,
-          path,
-          ACL,
-          ContentType
+
+      const data = await Promise.all(
+
+        files.map(async (file: Express.Multer.File) => {
+
+          return await this.uploadLargeAsset({
+            storageApproach,
+            Bucket,
+            file,
+            path,
+            ACL,
+            ContentType
+          });
         })
-      }))
-      urls = data.map((ele) => ele.Key as string)
+      );
+
+      urls = data.map((ele: any) => ele.Key);
 
     } else {
-      await Promise.all(files.map(async (file: Express.Multer.File) => {
-        return await this.uploadAsset({
-          storageApproach,
-          Bucket,
-          file,
-          path,
-          ACL,
-          ContentType
-        })
-      }))
 
+      const data = await Promise.all(
+
+        files.map(async (file: Express.Multer.File) => {
+
+          return await this.uploadAsset({
+            storageApproach,
+            Bucket,
+            file,
+            path,
+            ACL,
+            ContentType
+          });
+        })
+      );
+
+      console.log({data})
+
+      urls = data.map((ele: any) => ele);
     }
 
-    return urls
+    return urls;
   }
 
   async createPresignedUploadLink({
@@ -275,6 +348,47 @@ export class S3Service {
     return await this.client.send(command);
 
   }
+
+  // ------------------------- Delete Folder by Prefix -------------------------
+
+  async listFolderDir({
+    Bucket = AWS_BUCKET_NAME,
+    Prefix,
+  }: {
+    Bucket?: string;
+    Prefix: string;
+    }): Promise<ListObjectsV2CommandOutput> {
+
+    const command = new ListObjectsV2Command({
+      Bucket,
+      Prefix : `${APPLICATION_NAME}/${Prefix}`,
+    })
+
+    return await this.client.send(command);
+
+  }
+
+  async deleteFolderByPrefix({
+    Bucket = AWS_BUCKET_NAME,
+    Prefix,
+  }: {
+    Bucket?: string;
+    Prefix: string;
+    }): Promise<DeleteObjectsCommandOutput> {
+
+   const result = await this.listFolderDir({Bucket , Prefix})
+
+   const keys = result.Contents?.map((content) => ({ Key: content.Key })) as { Key: string }[]
+
+   if (keys?.length > 0) {
+    await this.deleteAssets({ Keys: keys ,  Bucket })
+   }
+
+    return result
+
+  }
+  
+
 
 }
 

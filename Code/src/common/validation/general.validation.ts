@@ -1,6 +1,7 @@
 
 import { Types } from 'mongoose';
 import { z } from 'zod';
+import { AvailabilityEnum } from '../enums';
 
 export const generalValidationFields = {
   email: z.email(),
@@ -30,5 +31,41 @@ export const generalValidationFields = {
   id: z.string().refine((id) => Types.ObjectId.isValid(id), { error: "Invalid ID" }),
 
   content: z.string().min(2, { error: "Content is too short" }).max(1000, { error: "Content is too long" }).optional(),
+  
+  tags: z.array(z.string()).optional(),
+
+  availability: z.coerce.number().default(AvailabilityEnum.PUBLIC), 
+
+  file: function (mimetype:string[] = ['any']) {
+    return z.strictObject({
+      fieldname: z.string(),
+      originalname: z.string(),
+      encoding: z.string(),
+      mimetype: z.enum(mimetype),
+      buffer: z.any().optional(),
+      path: z.string().optional(),
+      size: z.number()
+    }).superRefine((args, ctx) => {
+      if (!args.path && !args.buffer) {
+        ctx.addIssue({
+          code: "custom",
+          message: "buffer is required",
+          path: ['buffer']
+        });
+      }
+    });
+  }
 };
 
+export const paginationValidationSchema = {
+  query: z.object({
+    page: z.coerce.number().optional(),
+    size: z.coerce.number().optional(),
+    // populate: z.array(z.string()).optional(),
+    // select: z.array(z.string()).optional(),
+    search: z.string().optional(),
+    // sort: z.string().optional()
+  })
+}
+
+export type PagibanteDto = z.infer<typeof paginationValidationSchema.query>

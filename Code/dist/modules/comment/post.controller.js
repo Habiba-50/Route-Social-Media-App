@@ -43,9 +43,7 @@ const response_1 = require("../../common/response");
 const multer_1 = require("../../common/utils/multer");
 const validators = __importStar(require("./post.validation"));
 const validation_1 = require("../../common/validation");
-const comment_1 = require("../comment");
 const router = (0, express_1.Router)();
-router.use("/:postId/comment", comment_1.commentRouter);
 router.post("/", (0, middleware_1.authentication)(), (0, multer_1.cloudFileUpload)({
     validation: multer_1.fileFieldValidation.image
 }).array("attachments", 2), (0, middleware_1.validation)(validators.createPost), async (req, res, next) => {
@@ -63,6 +61,7 @@ router.post("/", (0, middleware_1.authentication)(), (0, multer_1.cloudFileUploa
 router.patch("/:postId", (0, middleware_1.authentication)(), (0, multer_1.cloudFileUpload)({
     validation: multer_1.fileFieldValidation.image
 }).array("attachments", 2), middleware_1.normalizePostUpdate, (0, middleware_1.validation)(validators.updatePost), async (req, res, next) => {
+    console.log("req.body", req.body);
     const data = await post_service_1.default.updatePost(req.params, {
         ...req.body,
         files: req.files
@@ -92,10 +91,6 @@ router.delete('/:id', (0, middleware_1.authentication)(), (0, middleware_1.valid
 });
 router.patch('/restore/:id', (0, middleware_1.authentication)(), (0, middleware_1.validation)(validators.deletePost), async (req, res, next) => {
     const data = await post_service_1.default.restorePost(req.params.id, req.user);
-    return (0, response_1.successResponse)({ res, statusCode: 200, data });
-});
-router.delete('/destroy/:id', (0, middleware_1.authentication)(), (0, middleware_1.validation)(validators.deletePost), async (req, res, next) => {
-    const data = await post_service_1.default.destroyPost(req.params.id, req.user);
     return (0, response_1.successResponse)({ res, statusCode: 200, data });
 });
 exports.default = router;

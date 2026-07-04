@@ -18,7 +18,7 @@ export class NotificationService {
             });
     }
 
-    async sendNotification({token , title , body}: {token : string[] , title : string , body : string}) {
+    async sendNotification({token , title , body}: {token : string , title : string , body : string}) {
         await this.client.messaging().send({
             token: token,
             notification: {
@@ -28,11 +28,11 @@ export class NotificationService {
         });
     }
 
-    async sendNotifications({ tokens, title, body }: { tokens: string [], title: string, body: string }) {
+    async sendNotifications({ tokens, title, body }: { tokens: string[], title: string, body: string }) {
         await Promise.allSettled(
-            tokens.map((token: string) => {
-                this.sendNotification({ token: [token], title, body });
-            })
+            tokens.map((token: string) => 
+                this.sendNotification({ token, title, body })
+            )
         );
     }
 

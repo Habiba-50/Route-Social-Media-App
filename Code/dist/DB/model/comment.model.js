@@ -1,12 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PostModel = void 0;
+exports.CommentModel = void 0;
 const mongoose_1 = require("mongoose");
-const enums_1 = require("../../common/enums");
-const postSchema = new mongoose_1.Schema({
-    folderId: {
-        type: String
-    },
+const commentSchema = new mongoose_1.Schema({
     content: {
         type: String,
         minLength: 2,
@@ -19,13 +15,10 @@ const postSchema = new mongoose_1.Schema({
     files: {
         type: [String]
     },
-    availability: {
-        type: Number,
-        enum: enums_1.AvailabilityEnum,
-        default: enums_1.AvailabilityEnum.PUBLIC
-    },
-    likes: [{ userId: { type: mongoose_1.Types.ObjectId, ref: "User" }, react: { type: Number } }],
+    likes: [{ userId: { type: mongoose_1.Types.ObjectId, ref: "User" }, react: { type: String } }],
     tags: [{ type: mongoose_1.Types.ObjectId, ref: "User" }],
+    postId: { type: mongoose_1.Types.ObjectId, ref: "Post" },
+    commentId: { type: mongoose_1.Types.ObjectId, ref: "Comment" },
     createdBy: { type: mongoose_1.Types.ObjectId, ref: "User", required: true },
     updatedBy: { type: mongoose_1.Types.ObjectId, ref: "User" },
     deletedAt: {
@@ -40,14 +33,14 @@ const postSchema = new mongoose_1.Schema({
     toObject: { virtuals: true },
     strict: true,
     strictQuery: true,
-    collection: 'SOCIAL_MEDIA_APP_POSTS'
+    collection: 'SOCIAL_MEDIA_APP_COMMENTS'
 });
-postSchema.virtual("comments", {
+commentSchema.virtual("replies", {
     ref: "Comment",
     localField: "_id",
-    foreignField: "postId",
+    foreignField: "commentId",
 });
-postSchema.pre(["deleteOne", "findOneAndDelete"], function () {
+commentSchema.pre(["deleteOne", "findOneAndDelete"], function () {
     const query = this.getQuery();
     const { force, ...restQuery } = query;
     if (force === true) {
@@ -57,4 +50,4 @@ postSchema.pre(["deleteOne", "findOneAndDelete"], function () {
         this.setQuery({ deletedAt: { $exists: true }, ...restQuery });
     }
 });
-exports.PostModel = mongoose_1.models.Post || (0, mongoose_1.model)('Post', postSchema);
+exports.CommentModel = mongoose_1.models.Comment || (0, mongoose_1.model)('Comment', commentSchema);

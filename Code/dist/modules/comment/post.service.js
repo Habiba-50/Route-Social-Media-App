@@ -1,10 +1,6 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PostService = void 0;
-const mongoose_1 = __importDefault(require("mongoose"));
 const repository_1 = require("../../DB/repository");
 const services_1 = require("../../common/services");
 const exceptions_1 = require("../../common/exceptions");
@@ -12,16 +8,17 @@ const node_crypto_1 = require("node:crypto");
 const enums_1 = require("../../common/enums");
 const post_1 = require("../../common/utils/post");
 const objectId_1 = require("../../common/utils/objectId");
-const comment_service_1 = require("../comment/comment.service");
 class PostService {
     postRepository;
-    mentionService;
-    commentService;
+    userRepository;
+    redis;
+    notificationService;
     s3;
     constructor() {
         this.postRepository = new repository_1.PostRepository();
-        this.mentionService = services_1.mentionService;
-        this.commentService = new comment_service_1.CommentService();
+        this.userRepository = new repository_1.UserRepository();
+        this.redis = services_1.redisService;
+        this.notificationService = services_1.notificationService;
         this.s3 = services_1.s3Service;
     }
     normalizePostResponse(post) {
@@ -32,12 +29,61 @@ class PostService {
             files: Array.isArray(restData?.files) ? restData.files : [],
         };
     }
+    async validateUserIds(ids, fieldName = "tags") {
+        if (!ids.length)
+            return;
+        const normalizedIds = [
+            ...new Set(ids.map((id) => id.trim()).filter(Boolean)),
+        ];
+        if (!normalizedIds.length)
+            return;
+        const users = await this.userRepository.findAll({
+            filter: {
+                _id: {
+                    $in: normalizedIds.map((id) => (0, objectId_1.toObjectId)(id)),
+                },
+            },
+        });
+        if (!users || users.length !== normalizedIds.length) {
+            throw new exceptions_1.NotFoundException(`Some or all ${fieldName} IDs not found in the system.`);
+        }
+    }
+    async validateMentionedUsers(userId, ids) {
+        if (!ids.length)
+            return;
+        const tagObjectIds = ids.map((id) => (0, objectId_1.toObjectId)(id));
+        const isFriendAndExist = await this.userRepository.countDocuments({
+            _id: userId,
+            friends: { $all: tagObjectIds },
+        });
+        if (isFriendAndExist === 0) {
+            throw new exceptions_1.BadRequestException("One or more tagged users are not in your friends list");
+        }
+    }
+    async sendMentionNotifications({ user, tags, postId, message, }) {
+        if (!tags?.length)
+            return;
+        const fcmResults = await Promise.all(tags.map((tag) => this.redis.getFCMs(tag)));
+        const fcmTokens = new Set(fcmResults.filter(Boolean).flat());
+        if (!fcmTokens.size)
+            return;
+        this.notificationService
+            .sendNotifications({
+            tokens: [...fcmTokens],
+            title: `${user.username} mentioned you`,
+            body: JSON.stringify({
+                message,
+                postId,
+            }),
+        })
+            .catch((err) => console.error("Failed to send mention notifications", err));
+    }
     async createPost({ availability, tags, content, files }, user) {
         const normalizedTags = [
             ...new Set((tags || []).map((tag) => tag.trim()).filter(Boolean)),
         ];
-        await this.mentionService.validateUserIds(normalizedTags, "tags");
-        await this.mentionService.validateMentionedUsers(user._id, normalizedTags);
+        await this.validateUserIds(normalizedTags, "tags");
+        await this.validateMentionedUsers(user._id, normalizedTags);
         const tagObjectIds = normalizedTags.map((tag) => (0, objectId_1.toObjectId)(tag));
         const folderId = (0, node_crypto_1.randomUUID)();
         let attachments = [];
@@ -67,10 +113,10 @@ class PostService {
             }
             throw new exceptions_1.BadRequestException("Failed to create post");
         }
-        await this.mentionService.sendMentionNotifications({
+        await this.sendMentionNotifications({
             user,
             tags: normalizedTags,
-            entityId: createdPost._id.toString(),
+            postId: createdPost._id.toString(),
             message: `${user.username} mentioned you in a post`,
         });
         return this.normalizePostResponse(createdPost);
@@ -94,14 +140,12 @@ class PostService {
         const normalizedRemoveTags = [
             ...new Set((removeTags || []).map((tag) => tag.trim()).filter(Boolean)),
         ];
-        await this.mentionService.validateUserIds(normalizedTags, "tags");
-        await this.mentionService.validateMentionedUsers(user._id, normalizedTags);
-        await this.mentionService.validateUserIds(normalizedRemoveTags, "removeTags");
+        await this.validateUserIds(normalizedTags, "tags");
+        await this.validateMentionedUsers(user._id, normalizedTags);
+        await this.validateUserIds(normalizedRemoveTags, "removeTags");
         const tagsToAdd = normalizedTags.map((tag) => (0, objectId_1.toObjectId)(tag));
         const tagsToRemove = normalizedRemoveTags.map((tag) => (0, objectId_1.toObjectId)(tag));
-        const expectedFilesCount = currentFiles.length -
-            filesToDelete.length +
-            files.length;
+        const expectedFilesCount = currentFiles.length - filesToDelete.length + files.length;
         if (!content && !post.content && expectedFilesCount === 0) {
             throw new exceptions_1.conflictException("Post must contain content or attachments");
         }
@@ -161,11 +205,13 @@ class PostService {
                 });
             }
             const notifyTaggedUsers = normalizedTags.filter((tag) => !post.tags?.some((existingTag) => existingTag.toString() === tag));
-            this.mentionService.sendMentionNotifications({
+            this.sendMentionNotifications({
                 user,
                 tags: notifyTaggedUsers,
-                entityId: updatedPost._id.toString(),
+                postId: updatedPost._id.toString(),
                 message: `${user.username} mentioned you in a post update`,
+            }).catch((err) => {
+                console.error("Failed to send mention notifications", err);
             });
             return this.normalizePostResponse(updatedPost);
         }
@@ -210,14 +256,6 @@ class PostService {
                 _id: id,
                 createdBy: user._id,
             },
-            options: {
-                populate: [
-                    {
-                        path: "comments",
-                        select: "content",
-                    },
-                ],
-            },
         });
         if (!post || post.deletedAt) {
             throw new Error("Post not found");
@@ -232,23 +270,6 @@ class PostService {
             },
             page,
             size,
-            options: {
-                populate: [
-                    {
-                        path: "comments",
-                        populate: [
-                            {
-                                path: "replies",
-                                populate: [
-                                    {
-                                        path: "replies",
-                                    },
-                                ],
-                            },
-                        ],
-                    },
-                ]
-            }
         });
         return {
             ...posts,
@@ -294,46 +315,24 @@ class PostService {
         return result;
     }
     async destroyPost(id, user) {
-        const post = await this.postRepository.findOne({
+        const result = await this.postRepository.findOneAndUpdate({
             filter: {
                 _id: id,
                 $or: [{ createdBy: user._id }, { role: enums_1.RoleEnum.ADMIN }],
+                deletedAt: { $exists: true },
             },
+            update: {
+                $unset: {
+                    deletedAt: 1,
+                },
+                updatedBy: user._id,
+            },
+            options: { new: true },
         });
-        if (!post) {
+        if (!result) {
             throw new Error("Post not found");
         }
-        const assetKeys = post.files?.map((file) => ({
-            Key: file,
-        }));
-        const session = await mongoose_1.default.startSession();
-        try {
-            session.startTransaction();
-            await this.postRepository.deleteOne({
-                filter: { _id: id },
-                options: { session },
-            });
-            await this.commentService.deleteCommentsByPostId({ postId: id }, user, session);
-            await session.commitTransaction();
-        }
-        catch (error) {
-            await session.abortTransaction();
-            throw error;
-        }
-        finally {
-            session.endSession();
-        }
-        try {
-            if (assetKeys?.length) {
-                await this.s3.deleteAssets({
-                    Keys: assetKeys,
-                });
-            }
-        }
-        catch (error) {
-            console.error(error);
-        }
-        return post;
+        return result;
     }
 }
 exports.PostService = PostService;

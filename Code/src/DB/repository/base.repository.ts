@@ -21,14 +21,14 @@ export class DatabaseRepository<TRawDocument> {
   constructor(private readonly model: Model<TRawDocument>) {}
 
   // ----------------------------------------Create method overloads----------------------------------------
-  // Create without options
+
   async create({
     data,
   }: {
     data: AnyKeys<TRawDocument>;
-  }): Promise<HydratedDocument<TRawDocument>[]>;
+  }): Promise<HydratedDocument<TRawDocument>>;
 
-  // Create with options
+  // Overload 2 - array → ترجع array
   async create({
     data,
     options,
@@ -37,17 +37,52 @@ export class DatabaseRepository<TRawDocument> {
     options?: CreateOptions | undefined;
   }): Promise<HydratedDocument<TRawDocument>[]>;
 
-  // Create with implementation
+  // Implementation
   async create({
     data,
     options,
   }: {
-    data: AnyKeys<TRawDocument>[];
+    data: AnyKeys<TRawDocument> | AnyKeys<TRawDocument>[];
     options?: CreateOptions | undefined;
-  }): Promise<HydratedDocument<TRawDocument>[]> {
-    const result = await this.model.create(data as any, options);
+  }): Promise<HydratedDocument<TRawDocument> | HydratedDocument<TRawDocument>[] | undefined> {
+    if (Array.isArray(data)) {
+      // Array input → return array
+      return await this.model.create(data as any, options) as HydratedDocument<TRawDocument>[];
+    }
+    // Single object → wrap in array so mongoose returns an array, then unwrap
+    const [result] = await this.model.create([data] as any, options) as HydratedDocument<TRawDocument>[];
     return result;
   }
+
+
+
+  // // Create without options
+  // async create({
+  //   data,
+  // }: {
+  //   data: AnyKeys<TRawDocument>;
+  // }): Promise<HydratedDocument<TRawDocument>[]>;
+
+  // // Create with options
+  // async create({
+  //   data,
+  //   options,
+  // }: {
+  //   data: AnyKeys<TRawDocument>[];
+  //   options?: CreateOptions | undefined;
+  // }): Promise<HydratedDocument<TRawDocument>[]>;
+
+  // // Create with implementation
+  // async create({
+  //   data,
+  //   options,
+  // }: {
+  //   data: AnyKeys<TRawDocument>[];
+  //   options?: CreateOptions | undefined;
+  // }): Promise<HydratedDocument<TRawDocument>[]> {
+  //   const result = await this.model.create(data as any, options);
+  //   return result;
+  // }
 
   // Create One
   // async createOne({
@@ -74,17 +109,6 @@ export class DatabaseRepository<TRawDocument> {
 
   // ----------------------------------------Find method overloads----------------------------------------
 
-  // Find One & lean:false
-  async findOne({
-    filter,
-    projection,
-    options,
-  }: {
-    filter: QueryFilter<TRawDocument>;
-    projection?: ProjectionType<TRawDocument> | null | undefined;
-    options?: QueryOptions<TRawDocument> & { lean: false };
-  }): Promise<HydratedDocument<TRawDocument> | null>;
-
   // Find One & lean:true
   async findOne({
     filter,
@@ -93,8 +117,19 @@ export class DatabaseRepository<TRawDocument> {
   }: {
     filter: QueryFilter<TRawDocument>;
     projection?: ProjectionType<TRawDocument> | null | undefined;
-    options?: QueryOptions<TRawDocument> & { lean: true };
+    options: QueryOptions<TRawDocument> & { lean: true };
   }): Promise<FlattenMaps<TRawDocument> | null>;
+
+  // Find One & lean:false (default)
+  async findOne({
+    filter,
+    projection,
+    options,
+  }: {
+    filter: QueryFilter<TRawDocument>;
+    projection?: ProjectionType<TRawDocument> | null | undefined;
+    options?: QueryOptions<TRawDocument>;
+  }): Promise<HydratedDocument<TRawDocument> | null>;
 
   // Find One implementation
   async findOne({
@@ -179,7 +214,7 @@ export class DatabaseRepository<TRawDocument> {
 
   // ----------------------------------------Find BY ID -----------------------------------
 
-  // Find By Id
+  // Find By Id & lean:true
   async findById({
     _id,
     projection,
@@ -187,18 +222,19 @@ export class DatabaseRepository<TRawDocument> {
   }: {
     _id: Types.ObjectId;
     projection?: ProjectionType<TRawDocument> | null | undefined;
-    options?: QueryOptions<TRawDocument> & { lean: false };
-  }): Promise<HydratedDocument<TRawDocument> | null>;
-
-  async findById({
-    _id,
-    projection,
-    options,
-  }: {
-    _id: Types.ObjectId;
-    projection?: ProjectionType<TRawDocument> | null | undefined;
-    options?: QueryOptions<TRawDocument> & { lean: true };
+    options: QueryOptions<TRawDocument> & { lean: true };
   }): Promise<FlattenMaps<TRawDocument> | null>;
+
+  // Find By Id & lean:false (default)
+  async findById({
+    _id,
+    projection,
+    options,
+  }: {
+    _id: Types.ObjectId;
+    projection?: ProjectionType<TRawDocument> | null | undefined;
+    options?: QueryOptions<TRawDocument>;
+  }): Promise<HydratedDocument<TRawDocument> | null>;
 
   async findById({
     _id,

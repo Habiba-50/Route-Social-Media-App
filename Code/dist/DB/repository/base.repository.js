@@ -7,7 +7,10 @@ class DatabaseRepository {
         this.model = model;
     }
     async create({ data, options, }) {
-        const result = await this.model.create(data, options);
+        if (Array.isArray(data)) {
+            return await this.model.create(data, options);
+        }
+        const [result] = await this.model.create([data], options);
         return result;
     }
     async insertMany({ data }) {

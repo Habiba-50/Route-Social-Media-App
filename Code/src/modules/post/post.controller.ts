@@ -7,10 +7,13 @@ import { cloudFileUpload, fileFieldValidation } from "../../common/utils/multer"
 import * as validators from "./post.validation";
 import {paginationValidationSchema } from "../../common/validation";
 import { ReactPostQueryDto, UpdatePostBodyDto, UpdatePostParamsDto } from "./post.dto";
+import { commentRouter } from "../comment";
 
 
 
 const router = Router();
+router.use("/:postId/comment",commentRouter);
+
 
 // Create Post
 router.post(
@@ -61,8 +64,6 @@ router.patch(
         res: Response,
         next: NextFunction
     ): Promise<Response> => {
-
-        console.log("req.body", req.body);
 
         const data = await postService.updatePost(
             req.params as UpdatePostParamsDto,
@@ -140,6 +141,15 @@ router.patch('/restore/:id',
     }
 )
 
+// Destroy Post
+router.delete('/destroy/:id',
+    authentication(),
+    validation(validators.deletePost),
+    async (req: Request, res: Response, next: NextFunction): Promise<Response> => {
+        const data = await postService.destroyPost(req.params.id as string,req.user);
+        return successResponse({ res, statusCode: 200, data });
+    }
+)
 
 
 

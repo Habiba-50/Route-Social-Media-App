@@ -1,11 +1,9 @@
-import { HydratedDocument, Types } from "mongoose";
+import mongoose, { HydratedDocument, Types } from "mongoose";
 
-import { PostRepository, UserRepository } from "../../DB/repository";
+import { PostRepository } from "../../DB/repository";
 import {
-  notificationService,
-  NotificationService,
-  redisService,
-  RedisService,
+  mentionService,
+  MentionService,
   s3Service,
   S3Service,
 } from "../../common/services";
@@ -26,19 +24,20 @@ import { IPaginate, IPost, IUser } from "../../common/interfaces";
 import { RoleEnum } from "../../common/enums";
 import { getAvailability } from "../../common/utils/post";
 import { toObjectId } from "../../common/utils/objectId";
+import { CommentService } from "../comment/comment.service";
 
 export class PostService {
   private readonly postRepository: PostRepository;
-  private readonly userRepository: UserRepository;
-  private readonly redis: RedisService;
-  private readonly notificationService: NotificationService;
+  // private readonly userRepository: UserRepository;
+  private readonly mentionService: MentionService;
+  private readonly commentService: CommentService
   private readonly s3: S3Service;
 
   constructor() {
     this.postRepository = new PostRepository();
-    this.userRepository = new UserRepository();
-    this.redis = redisService;
-    this.notificationService = notificationService;
+    // this.userRepository = new UserRepository();
+    this.mentionService = mentionService;
+    this.commentService = new CommentService();
     this.s3 = s3Service;
   }
 
@@ -52,104 +51,19 @@ export class PostService {
     };
   }
 
-  private async validateUserIds(
-    ids: string[],
-    fieldName: string = "tags",
-  ): Promise<void> {
-    if (!ids.length) return;
-
-    const normalizedIds = [
-      ...new Set(ids.map((id) => id.trim()).filter(Boolean)),
-    ];
-
-    if (!normalizedIds.length) return;
-
-    const users = await this.userRepository.findAll({
-      filter: {
-        _id: {
-          $in: normalizedIds.map((id) => toObjectId(id)),
-        },
-      },
-    });
-
-    if (!users || users.length !== normalizedIds.length) {
-      throw new NotFoundException(
-        `Some or all ${fieldName} IDs not found in the system.`,
-      );
-    }
-  }
-
-  private async validateMentionedUsers(
-    userId: Types.ObjectId,
-    ids: string[],
-  ): Promise<void> {
-    if (!ids.length) return;
-
-    const tagObjectIds = ids.map((id) => toObjectId(id));
-
-    const isFriendAndExist = await this.userRepository.countDocuments({
-      _id: userId,
-      friends: { $all: tagObjectIds },
-    });
-
-    if (isFriendAndExist === 0) {
-      throw new BadRequestException(
-        "You can only tag users who are in your friends list",
-      );
-    }
-  }
-
-  private async sendMentionNotifications({
-    user,
-    tags, // Ensure you only pass NEWLY added tags during updates!
-    postId,
-    message,
-  }: {
-    user: any;
-    tags: string[];
-    postId: string;
-    message: string;
-  }): Promise<void> {
-    if (!tags?.length) return;
-
-    // 1. Fetch all FCM tokens from Redis in parallel (promise.all to much faster!)
-    const fcmResults = await Promise.all(
-      tags.map((tag) => this.redis.getFCMs(tag)),
-    );
-
-    // 2. Flatten the arrays Because each user may have their account open from two or three devices at the same time
-    // and filter out duplicates using Set
-    const fcmTokens = new Set<string>(fcmResults.filter(Boolean).flat());
-
-    if (!fcmTokens.size) return;
-
-    // 3. Send notifications asynchronously without awaiting it if you want faster API response
-    this.notificationService
-      .sendNotifications({
-        tokens: [...fcmTokens],
-        title: `${user.username} mentioned you`,
-        body: JSON.stringify({
-          message,
-          postId,
-        }),
-      })
-      .catch((err) =>
-        console.error("Failed to send mention notifications", err),
-      );
-  }
 
   // ------------------------------- Create Post -------------------------------
 
   public async createPost(
     { availability, tags, content, files }: CreatePostDto,
-    user: any,
+    user: IUser & { _id: Types.ObjectId },
   ): Promise<any> {
     const normalizedTags = [
       ...new Set((tags || []).map((tag) => tag.trim()).filter(Boolean)),
     ];
 
-    await this.validateUserIds(normalizedTags, "tags");
-    await this.validateMentionedUsers(user._id, normalizedTags);
+    await this.mentionService.validateUserIds(normalizedTags, "tags");
+    await this.mentionService.validateMentionedUsers(user._id, normalizedTags);
 
     const tagObjectIds = normalizedTags.map((tag) => toObjectId(tag));
 
@@ -168,7 +82,7 @@ export class PostService {
     }
 
     // Create post
-    const createdPost: any = await this.postRepository.create({
+    const createdPost = await this.postRepository.create({
       data: {
         content,
         createdBy: user._id,
@@ -192,10 +106,10 @@ export class PostService {
       throw new BadRequestException("Failed to create post");
     }
 
-    await this.sendMentionNotifications({
+    await this.mentionService.sendMentionNotifications({
       user,
       tags: normalizedTags,
-      postId: createdPost._id.toString(),
+      entityId: createdPost._id.toString(),
       message: `${user.username} mentioned you in a post`,
     });
 
@@ -205,87 +119,102 @@ export class PostService {
   // ------------------------------- Update Post -------------------------------
 
   public async updatePost(
-    { postId }: UpdatePostParamsDto,
-    {
-      content,
-      availability,
-      removeFiles = [],
-      files = [], // Input files from the request body
-      tags = [],
-      removeTags = [],
-    }: UpdatePostBodyDto,
-    user: HydratedDocument<IUser>,
+  { postId }: UpdatePostParamsDto,
+  {
+    content,
+    availability,
+    removeFiles = [],
+    files = [],
+    tags = [],
+    removeTags = [],
+  }: UpdatePostBodyDto,
+  user: HydratedDocument<IUser>,
   ): Promise<IPost> {
-    // 1. Fetch the post for validation and to get the S3 folder path
-    const post = await this.postRepository.findOne({
-      filter: {
-        _id: postId,
-        createdBy: user._id,
-        deletedAt: { $exists: false },
-      },
-    });
+    
+    //1- Get the post for validation and to get the S3 folder path
+  const post = await this.postRepository.findOne({
+    filter: {
+      _id: postId,
+      createdBy: user._id,
+      deletedAt: { $exists: false },
+    },
+  });
 
-    if (!post) {
-      throw new NotFoundException("Post not found");
+  if (!post) {
+    throw new NotFoundException("Post not found");
     }
+    
 
-    // 2. Handle S3 assets
-    let uploadedFiles: string[] = [];
-    const currentFiles = post.files || [];
-    const filesToDelete = currentFiles.filter((file) =>
-      removeFiles.includes(file),
+  // 2- Handle S3 assets
+
+  const currentFiles = post.files || [];
+
+  const filesToDelete = currentFiles.filter((file) =>
+    removeFiles.includes(file),
     );
+    
+    
+  // 3 - Handle tags - Clean and validate incoming tag IDs
 
-    if (filesToDelete.length) {
-      await this.s3.deleteAssets({
-        Keys: filesToDelete.map((file) => ({ Key: file })),
-      });
-    }
+  const normalizedTags = [
+    ...new Set((tags || []).map((tag) => tag.trim()).filter(Boolean)),
+  ];
 
+  const normalizedRemoveTags = [
+    ...new Set(
+      (removeTags || []).map((tag) => tag.trim()).filter(Boolean),
+    ),
+  ];
+
+  await this.mentionService.validateUserIds(normalizedTags, "tags");
+  await this.mentionService.validateMentionedUsers(user._id, normalizedTags);
+  await this.mentionService.validateUserIds(normalizedRemoveTags, "removeTags");
+
+  const tagsToAdd = normalizedTags.map((tag) => toObjectId(tag));
+
+  const tagsToRemove = normalizedRemoveTags.map((tag) =>
+    toObjectId(tag),
+  );
+
+  
+  // 4- Check if the post has content or attachments
+  const expectedFilesCount =
+      currentFiles.length -
+    filesToDelete.length +
+    files.length;
+
+  if (!content && !post.content && expectedFilesCount === 0) {
+    throw new conflictException(
+      "Post must contain content or attachments",
+    );
+  }
+
+    
+  //5 - Upload new files first
+  let uploadedFiles: string[] = [];
+
+  try {
     if (files.length) {
       uploadedFiles = await this.s3.uploadAssets({
         files: files as Express.Multer.File[],
-        path: `post/${post.folderId}`,
-      });
-    }
+          path: `post/${post.folderId}`,
+        });
+      }
 
-    // Clean and validate incoming tag IDs
-    const normalizedTags = [
-      ...new Set((tags || []).map((tag) => tag.trim()).filter(Boolean)),
-    ];
-    const normalizedRemoveTags = [
-      ...new Set((removeTags || []).map((tag) => tag.trim()).filter(Boolean)),
-    ];
-
-    await this.validateUserIds(normalizedTags, "tags");
-    await this.validateMentionedUsers(user._id, normalizedTags);
-    await this.validateUserIds(normalizedRemoveTags, "removeTags");
-
-    const tagsToAdd = normalizedTags.map((tag) => toObjectId(tag));
-    const tagsToRemove = normalizedRemoveTags.map((tag) => toObjectId(tag));
-
-    // 3. Validate post requirements based on the expected final attachments count
-    const expectedfilesCount =
-      currentFiles.length - filesToDelete.length + uploadedFiles.length;
-    if (!content && !post.content && expectedfilesCount === 0) {
-      throw new conflictException("Post must contain content or attachments");
-    }
-
-    // 4. Smart update using an Aggregation Pipeline inside findOneAndUpdate
+    
+  //6- Update the post in the database
     const updatedPost = await this.postRepository.findOneAndUpdate({
       filter: {
         _id: postId,
         createdBy: user._id,
         deletedAt: { $exists: false },
       },
-      // Array brackets indicate the use of an Aggregation Pipeline
       update: [
         {
           $set: {
-            // If content is provided, update it; otherwise, retain the current value from DB
-            content: content !== undefined ? content : "$content",
+            content:
+              content !== undefined ? content : "$content",
 
-            // Update availability and cast to Number if provided
             availability:
               availability !== undefined
                 ? Number(availability)
@@ -293,18 +222,20 @@ export class PostService {
 
             updatedBy: user._id,
 
-            // Remove specified files then merge new ones to ensure uniqueness
             files: {
               $setUnion: [
-                { $setDifference: ["$files", removeFiles] },
+                {
+                  $setDifference: ["$files", removeFiles],
+                },
                 uploadedFiles,
               ],
             },
 
-            // Remove specified tags then merge new ones to ensure uniqueness
             tags: {
               $setUnion: [
-                { $setDifference: ["$tags", tagsToRemove] },
+                {
+                  $setDifference: ["$tags", tagsToRemove],
+                },
                 tagsToAdd,
               ],
             },
@@ -316,22 +247,59 @@ export class PostService {
       },
     });
 
-    // // Notify ONLY newly tagged users in this update
-    const notifyTaggedUsers = normalizedTags.filter(
-      (tag) =>
-        !post.tags?.some((existingTag) => existingTag.toString() === tag),
-    );
-    if (updatedPost) {
-      await this.sendMentionNotifications({
-        user,
-        tags: notifyTaggedUsers,
-        postId: updatedPost._id.toString(),
-        message: `${user.username} mentioned you in a post update`,
+    if (!updatedPost) {
+      throw new BadRequestException(
+        "Post wasn't updated successfully",
+      );
+    }
+
+  //7 - Delete old files only after successful DB update
+    if (filesToDelete.length) {
+      await this.s3.deleteAssets({
+        Keys: filesToDelete.map((file) => ({
+          Key: file,
+        })),
       });
     }
 
+  //8 - Send notification to tagged users if there are any new tags
+    const notifyTaggedUsers = normalizedTags.filter(
+      (tag) =>
+        !post.tags?.some(
+          (existingTag) =>
+            existingTag.toString() === tag,
+        ),
+    );
+
+    // sendMentionNotifications is fire-and-forget — it handles its own errors internally
+    this.mentionService.sendMentionNotifications({
+      user,
+      tags: notifyTaggedUsers,
+      entityId: updatedPost._id.toString(),
+      message: `${user.username} mentioned you in a post update`,
+    });
+
     return this.normalizePostResponse(updatedPost) as IPost;
+  } catch (error) {
+    // Rollback newly uploaded files
+    if (uploadedFiles.length) {
+      try {
+        await this.s3.deleteAssets({
+          Keys: uploadedFiles.map((file) => ({
+            Key: file,
+          })),
+        });
+      } catch (rollbackError) {
+        console.error(
+          "Failed to rollback uploaded files",
+          rollbackError,
+        );
+      }
+    }
+
+    throw error;
   }
+}
 
   // ------------------------------- React Post -------------------------------
 
@@ -372,6 +340,14 @@ export class PostService {
         _id: id,
         createdBy: user._id,
       },
+      options: {
+        populate: [
+          {
+            path: "comments",
+            select: "content",
+          },
+        ],
+      },
     });
 
     if (!post || post.deletedAt) {
@@ -382,7 +358,7 @@ export class PostService {
   }
 
   // ------------------------- Get All Posts with pagination ----------------------
-  public async getPostList(
+    public async getPostList(
     {
       page,
       size,
@@ -402,6 +378,24 @@ export class PostService {
       },
       page,
       size,
+      options:{
+        populate: [
+          {
+            path: "comments",
+            populate: [
+              {
+                path: "replies",
+                populate: [
+                  {
+                    path: "replies",
+                  },
+                ],
+              },
+            ],
+          },
+          
+        ]
+      }
     });
 
     return {
@@ -416,12 +410,6 @@ export class PostService {
     id: string,
     user: IUser & { _id: Types.ObjectId },
   ): Promise<any> {
-    // const post = await this.postRepository.findOne({
-    //     filter: {
-    //         _id: id,
-    //         createdBy: user._id
-    //     }
-    // });
 
     const result = await this.postRepository.findOneAndUpdate({
       filter: {
@@ -444,28 +432,6 @@ export class PostService {
   }
 
   // ------------------------------- Restore Post -------------------------------
-
-  // public async restorePost(id: string, user: IUser & {_id:Types.ObjectId}) : Promise<any> {
-
-  //     const result = await this.postRepository.findOneAndUpdate({
-  //         filter: {
-  //             _id: id,
-  //             createdBy: user._id || user.role === RoleEnum.ADMIN,
-  //             deletedAt: { $exists: true }
-  //         },
-  //         update: {
-  //             deletedAt: undefined,
-  //             updatedBy: user._id
-  //         },
-  //         options: { new: true }
-  //     });
-
-  //     if (!result) {
-  //         throw new Error("Post not found");
-  //     }
-
-  //     return result;
-  // }
 
   public async restorePost(
     id: string,
@@ -495,30 +461,73 @@ export class PostService {
 
   // ------------------------------- Destroy Post -------------------------------
 
+  // we want to delete all assets that related to this post from s3
+  // Delete all comments on it with replies 
+
+  
   public async destroyPost(
     id: string,
     user: IUser & { _id: Types.ObjectId },
   ): Promise<any> {
-    const result = await this.postRepository.findOneAndUpdate({
+
+    // 1- Get Post
+    const post = await this.postRepository.findOne({
       filter: {
         _id: id,
         $or: [{ createdBy: user._id }, { role: RoleEnum.ADMIN }],
-        deletedAt: { $exists: true },
       },
-      update: {
-        $unset: {
-          deletedAt: 1,
-        },
-        updatedBy: user._id,
-      },
-      options: { new: true },
     });
 
-    if (!result) {
+    if (!post) {
       throw new Error("Post not found");
     }
 
-    return result;
+    // 2- Prepare assets keys for deletion
+    const assetKeys: { Key: string }[] | undefined = post.files?.map((file) => ({
+      Key: file,
+    }));
+
+    // 3 - Transactions (DB only - if this failed, we don't want to delete anything from S3)
+    // we use Session to handel database deletion and rollback if anything goes wrong in the database operations
+    
+    const session = await mongoose.startSession();
+
+    try {
+      session.startTransaction();
+
+      // Delete Post
+      await this.postRepository.deleteOne({
+        filter: { _id: id },
+        options: { session },
+      });
+
+      // Delete Comments
+      await this.commentService.deleteCommentsByPostId(
+        { postId: id },
+        user as HydratedDocument<IUser>,
+        session,
+      );
+
+      await session.commitTransaction();
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+
+    // 4 - Delete all assets from s3
+    try {
+      if (assetKeys?.length) {
+        await this.s3.deleteAssets({
+          Keys: assetKeys,
+        });
+      }
+    } catch (error) {
+      console.error(error)
+    }
+
+    return post;
   }
 }
 

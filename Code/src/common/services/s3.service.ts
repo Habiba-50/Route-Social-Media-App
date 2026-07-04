@@ -58,6 +58,7 @@ export class S3Service {
     try {
       
       await this.client.send(command);
+      // console.log("Done uploading small asset to s3")
 
       if (!command.input.Key) {
         throw new BadRequestException("Failed to upload this asset"); // Typically a BadGatewayException [9]

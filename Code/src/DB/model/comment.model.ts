@@ -1,17 +1,14 @@
 import { model, models, Schema, Types } from "mongoose"
-import { IPost } from "../../common/interfaces"
-import { AvailabilityEnum } from "../../common/enums"
+import { IComment } from "../../common/interfaces"
 
 
-const postSchema = new Schema<IPost>({
-    folderId: {
-        type: String
-   },
+const commentSchema = new Schema<IComment>({
+    
     content: {
         type: String,
         minLength: 2,
         maxLength: 50000,
-        trim: true,
+        trim: true, 
         required: function () {
             return this.files?.length ? false : true
         }
@@ -19,13 +16,13 @@ const postSchema = new Schema<IPost>({
     files: {
         type: [String]
     },
-    availability: {
-        type: Number,
-        enum: AvailabilityEnum,
-        default: AvailabilityEnum.PUBLIC
-    },
-    likes: [{ userId: { type: Types.ObjectId, ref: "User" }, react: { type: Number } }],
+
+    likes: [{ userId: { type: Types.ObjectId, ref: "User" }, react: { type: String } }],
     tags: [{ type: Types.ObjectId, ref: "User" }],
+
+    postId: { type: Types.ObjectId, ref: "Post" },
+    commentId: { type: Types.ObjectId, ref: "Comment" },
+
     createdBy: { type: Types.ObjectId, ref: "User", required: true },
     updatedBy: { type: Types.ObjectId, ref: "User" },
     deletedAt : {
@@ -40,19 +37,16 @@ const postSchema = new Schema<IPost>({
     toObject: { virtuals: true },
     strict: true,
     strictQuery: true,
-    collection: 'SOCIAL_MEDIA_APP_POSTS'
+    collection: 'SOCIAL_MEDIA_APP_COMMENTS'
 })
 
-
-// post._id => comment.postID
-
-postSchema.virtual("comments", {
+commentSchema.virtual("replies", {
     ref: "Comment",
     localField: "_id",
-    foreignField: "postId",
+    foreignField: "commentId",
 })
 
-postSchema.pre(["deleteOne", "findOneAndDelete"], function () {
+commentSchema.pre(["deleteOne", "findOneAndDelete"], function () {
 
     const query = this.getQuery()
     const { force, ...restQuery } = query
@@ -68,4 +62,4 @@ postSchema.pre(["deleteOne", "findOneAndDelete"], function () {
 })
 
 
-export const PostModel = models.Post || model<IPost>('Post', postSchema)
+export const CommentModel = models.Comment || model<IComment>('Comment', commentSchema)

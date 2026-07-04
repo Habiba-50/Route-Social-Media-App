@@ -42,11 +42,6 @@ const postSchema = new mongoose_1.Schema({
     strictQuery: true,
     collection: 'SOCIAL_MEDIA_APP_POSTS'
 });
-postSchema.virtual("comments", {
-    ref: "Comment",
-    localField: "_id",
-    foreignField: "postId",
-});
 postSchema.pre(["deleteOne", "findOneAndDelete"], function () {
     const query = this.getQuery();
     const { force, ...restQuery } = query;

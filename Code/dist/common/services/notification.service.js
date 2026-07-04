@@ -27,9 +27,7 @@ class NotificationService {
         });
     }
     async sendNotifications({ tokens, title, body }) {
-        await Promise.allSettled(tokens.map((token) => {
-            this.sendNotification({ token: [token], title, body });
-        }));
+        await Promise.allSettled(tokens.map((token) => this.sendNotification({ token, title, body })));
     }
 }
 exports.NotificationService = NotificationService;

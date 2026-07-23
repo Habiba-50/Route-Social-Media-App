@@ -61,10 +61,7 @@ export const paginationValidationSchema = {
   query: z.object({
     page: z.coerce.number().optional(),
     size: z.coerce.number().optional(),
-    // populate: z.array(z.string()).optional(),
-    // select: z.array(z.string()).optional(),
     search: z.string().optional(),
-    // sort: z.string().optional()
   })
 }
 

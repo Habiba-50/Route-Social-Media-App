@@ -308,22 +308,22 @@ export class PostService {
     { react }: ReactPostQueryDto,
     user: IUser & { _id: Types.ObjectId },
   ) {
-    //   console.log(postId)
+      // console.log(postId , react , user)
 
     const post = await this.postRepository.findOneAndUpdate({
       filter: {
-        _id: postId,
+        _id: toObjectId(postId),
         $or: getAvailability(user as HydratedDocument<IUser>),
       },
       update: {
         ...(Number(react) > 0
           ? { $addToSet: { likes: { react: Number(react), userId: user._id } } }
-          : { $pull: { likes: user._id } }),
+          : { $pull: { likes: { userId: user._id } } }),
       },
-      options: { new: true },
+      options: { new: true , populate:[{path:"likes.userId" , select:"-password"}]}
     });
 
-    console.log(post?.likes);
+    // console.log(post);
 
     if (!post) {
       throw new NotFoundException("Post not found");
@@ -346,10 +346,12 @@ export class PostService {
             path: "comments",
             select: "content",
           },
+          {path:"likes" , select:"react userId"}
         ],
       },
     });
 
+    console.log(post)
     if (!post || post.deletedAt) {
       throw new Error("Post not found");
     }
@@ -378,8 +380,12 @@ export class PostService {
       },
       page,
       size,
-      options:{
+      options: {
         populate: [
+          { path: "likes.userId" },
+          { path: "createdBy" },
+          {path:"tags"},
+          { path: "updatedBy" },
           {
             path: "comments",
             populate: [
@@ -393,7 +399,6 @@ export class PostService {
               },
             ],
           },
-          
         ]
       }
     });

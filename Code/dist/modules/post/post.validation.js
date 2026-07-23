@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.reactPost = exports.getPost = exports.deletePost = exports.updatePost = exports.createPost = void 0;
+exports.reactOnPostGQL = exports.reactPost = exports.getPost = exports.deletePost = exports.updatePost = exports.createPost = void 0;
 const zod_1 = require("zod");
 const validation_1 = require("../../common/validation");
 const mongoose_1 = require("mongoose");
@@ -93,3 +93,7 @@ exports.reactPost = {
         postId: validation_1.generalValidationFields.id,
     })
 };
+exports.reactOnPostGQL = zod_1.z.strictObject({
+    postId: validation_1.generalValidationFields.id,
+    react: zod_1.z.coerce.number()
+});

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.normalizePostUpdate = exports.validation = void 0;
+exports.normalizePostUpdate = exports.SocketValidation = exports.GQLValidation = exports.validation = void 0;
 const exceptions_1 = require("../common/exceptions");
 const validation = (schema) => {
     return (req, res, next) => {
@@ -32,6 +32,26 @@ const validation = (schema) => {
     };
 };
 exports.validation = validation;
+const GQLValidation = async (schema, args) => {
+    const validationResult = schema.safeParse(args);
+    if (!validationResult.success) {
+        throw (0, exceptions_1.MapGraphQLError)(new exceptions_1.BadRequestException("Validation Error", {
+            issues: validationResult.error.issues.map(issue => { return { path: issue.path, message: issue.message }; })
+        }));
+    }
+    return true;
+};
+exports.GQLValidation = GQLValidation;
+const SocketValidation = async (schema, args) => {
+    const validationResult = schema.safeParse(args);
+    if (!validationResult.success) {
+        throw new exceptions_1.BadRequestException("Validation Error", {
+            issues: validationResult.error.issues.map(issue => { return { path: issue.path, message: issue.message }; })
+        });
+    }
+    return true;
+};
+exports.SocketValidation = SocketValidation;
 const normalizePostUpdate = (req, res, next) => {
     if (req.body.removeFiles &&
         typeof req.body.removeFiles === "string") {

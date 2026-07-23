@@ -9,8 +9,9 @@ var AvailabilityEnum;
 })(AvailabilityEnum || (exports.AvailabilityEnum = AvailabilityEnum = {}));
 var ReactEnum;
 (function (ReactEnum) {
+    ReactEnum[ReactEnum["DISLIKE"] = 0] = "DISLIKE";
     ReactEnum[ReactEnum["LIKE"] = 1] = "LIKE";
-    ReactEnum[ReactEnum["HEART"] = 2] = "HEART";
+    ReactEnum[ReactEnum["LOVE"] = 2] = "LOVE";
     ReactEnum[ReactEnum["LAUGH"] = 3] = "LAUGH";
     ReactEnum[ReactEnum["WOW"] = 4] = "WOW";
     ReactEnum[ReactEnum["SAD"] = 5] = "SAD";

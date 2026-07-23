@@ -20,3 +20,4 @@ __exportStar(require("./security.enum"), exports);
 __exportStar(require("./multer.enum"), exports);
 __exportStar(require("./post.enum"), exports);
 __exportStar(require("./notification.enum"), exports);
+__exportStar(require("./chat.enum"), exports);

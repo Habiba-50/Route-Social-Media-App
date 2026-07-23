@@ -4,26 +4,6 @@ import { Types } from 'mongoose';
 import { fileFieldValidation } from '../../common/utils/multer';
 
 
-// export const createPost = {
-//     body: z.strictObject({
-//         content: generalValidationFields.content,
-//         files: generalValidationFields.files,
-//         tags: generalValidationFields.tags,
-//         availability: generalValidationFields.availability
-//     }).superRefine((args , ctx) => {
-//         if (!args.files?.length && !args.content) {
-//             ctx.addIssue({
-//                 code: "custom",
-//                 path: ['content' , 'file'],
-//                 message: "Content or files is required",
-//             })
-//         }
-
-
-
-        
-//     })
-// }
 
 export const createPost = {
     body: z.strictObject({
@@ -56,15 +36,7 @@ export const createPost = {
     // Validated against req.files by the middleware
 };
 
-// export const updatePost = {
-//     body: z.strictObject({
-//         content: generalValidationFields.content,
-//     }).catchall(z.string()),
-//     params: z.strictObject({
-//         id: z.string().refine((id) => Types.ObjectId.isValid(id), { error: "Invalid post ID" }),
-//     })
-// }
-
+// -----------------------------------------------------------
 
 export const updatePost = {
 
@@ -123,17 +95,23 @@ export const updatePost = {
     })
 };
 
+// -----------------------------------------------------------
+
 export const deletePost = {
     params: z.strictObject({
         id: z.string().refine((id) => Types.ObjectId.isValid(id), { error: "Invalid post ID" }),
     })
 }
 
+// -----------------------------------------------------------
+
 export const getPost = {
     params: z.strictObject({
         id: generalValidationFields.id,
     })
 }
+
+// -----------------------------------------------------------
 
 export const reactPost = {
     query: z.strictObject({
@@ -143,3 +121,11 @@ export const reactPost = {
         postId: generalValidationFields.id,
     })
 }
+
+// -----------------------------------------------------------
+
+export const reactOnPostGQL = z.strictObject({
+        postId: generalValidationFields.id,
+        react: z.coerce.number()
+})
+

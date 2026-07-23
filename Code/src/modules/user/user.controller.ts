@@ -1,6 +1,6 @@
 import type { NextFunction, Response, Request } from "express";
 import { Router } from "express";
-import { authentication, authorization } from "../../middleware/authentication.middleware";
+import { authentication , authorization } from "../../middleware";
 import { successResponse } from "../../common/response";
 import userService from "./user.service";
 import { userAuthorization } from "./user.authorization";
@@ -8,10 +8,14 @@ import {  StorageApproachEnum, TokenTypeEnum } from "../../common/enums";
 import { cloudFileUpload, fileFieldValidation } from "../../common/utils/multer";
 import { IUser } from "../../common/interfaces";
 import { HydratedDocument } from "mongoose";
+import { chatRouter } from "../chat";
 
 
 
 const router = Router();
+
+//  Routes
+router.use("/:userId/chat", chatRouter);
 
 // -------------------------------- Get Profile----------------------------------------------
 

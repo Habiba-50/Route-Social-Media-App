@@ -22,7 +22,7 @@ class UserService {
         if (user?.phone) {
             user.phone = await (0, utils_1.decrypt)(user.phone);
         }
-        return user;
+        return { user: user };
     }
     async rotateToken(user, { sub, jti, iat }, issuer) {
         if ((iat + config_1.ACCESS_TOKEN_EXPIRY) * 1000 >

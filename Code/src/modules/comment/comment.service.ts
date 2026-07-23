@@ -460,7 +460,7 @@ export class CommentService {
       update: {
         ...(Number(react) > 0
           ? { $addToSet: { likes: { react: ReactEnum[react], userId: user._id } } }
-          : { $pull: { likes: user._id } }),
+          : { $pull: { likes: { userId: user._id } } }),
       },
       options: { new: true },
     });

@@ -14,10 +14,10 @@ export class TokenService {
     private redis: RedisService;
     private userRepository: UserRepository;
 
-    constructor() { 
+    constructor() {
         this.redis = redisService;
         this.userRepository = new UserRepository();
-    } 
+    }
 
     // ------------------------------ Generate Token ---------------------------------
 
@@ -73,7 +73,7 @@ export class TokenService {
     }
 
     // ------------------------------Create login credentials ---------------------
-    public async createLoginCredentials ({ user, issuer } : {user : any , issuer : string}):Promise<{
+    public async createLoginCredentials({ user, issuer }: { user: any, issuer: string }): Promise<{
         access_token: string;
         refresh_token: string;
     }> {
@@ -109,10 +109,10 @@ export class TokenService {
 
     //------------------------------Decode Token----------------------------------
 
-    async decodeToken(token: string, allowedTokenType: TokenTypeEnum[] = []) :Promise<{
+    async decodeToken(token: string, allowedTokenType?: TokenTypeEnum[]): Promise<{
         user: HydratedDocument<IUser>;
         decoded: JwtPayload;
-    }>{
+    }> {
 
         const decoded = jwt.decode(token);
         // console.log({ decoded });
@@ -132,7 +132,7 @@ export class TokenService {
             throw new BadRequestException("Invalid token")
         }
 
-        if (allowedTokenType.length && !allowedTokenType.includes(tokenType)) {
+        if (allowedTokenType?.length && !allowedTokenType.includes(tokenType)) {
             throw new NotFoundException("Invalid token type")
         }
 
@@ -179,7 +179,7 @@ export class TokenService {
 
     }
 
-    public async createRevokeToken ({ sub, jti, ttl } : {sub : string , jti : string , ttl : number}) {
+    public async createRevokeToken({ sub, jti, ttl }: { sub: string, jti: string, ttl: number }) {
         await this.redis.set({
             key: this.redis.revokeTokenKey({ userId: sub, jti }),
             value: jti,

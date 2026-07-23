@@ -6,8 +6,9 @@ export enum AvailabilityEnum{
 }
 
 export enum ReactEnum {
+    DISLIKE = 0,
     LIKE = 1,
-    HEART = 2,
+    LOVE = 2,
     LAUGH = 3,
     WOW = 4,
     SAD = 5,

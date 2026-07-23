@@ -12,13 +12,20 @@ const services_1 = require("./common/services");
 const node_stream_1 = require("node:stream");
 const node_util_1 = require("node:util");
 const response_1 = require("./common/response");
+const express_2 = require("graphql-http/lib/use/express");
+const cors_1 = __importDefault(require("cors"));
 const s3WriteStream = (0, node_util_1.promisify)(node_stream_1.pipeline);
 const bootstrap = async () => {
     const app = (0, express_1.default)();
+    app.use((0, cors_1.default)({
+        origin: '*',
+        credentials: true
+    }));
     app.get('/', (req, res, next) => {
         res.status(200).json({ message: "Landing page" });
     });
     app.use(express_1.default.json());
+    app.all('/graphql', (0, middleware_1.authentication)(), (0, express_2.createHandler)({ schema: modules_1.schema, context: (req) => ({ user: req.raw.user, decoded: req.raw.decoded }) }));
     app.use("/auth", modules_1.authRouter);
     app.use("/user", modules_1.userRouter);
     app.use("/notification", modules_1.notificationRouter);
@@ -48,9 +55,10 @@ const bootstrap = async () => {
     app.use(middleware_1.globalErrorHandler);
     await (0, connection_db_1.connectDB)();
     await services_1.redisService.connent();
-    app.listen(config_1.port, () => {
+    const httpServer = app.listen(config_1.port, () => {
         console.log("Server is running on port 3000 🚀");
     });
+    await modules_1.realtimeGateway.initializeIO(httpServer);
     console.log("Application bootstrapped successfully!");
 };
 exports.default = bootstrap;

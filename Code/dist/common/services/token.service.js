@@ -69,7 +69,7 @@ class TokenService {
         });
         return { access_token, refresh_token };
     }
-    async decodeToken(token, allowedTokenType = []) {
+    async decodeToken(token, allowedTokenType) {
         const decoded = jsonwebtoken_1.default.decode(token);
         if (typeof decoded === "string" || !decoded || !Array.isArray(decoded.aud) || !decoded.aud.length) {
             throw new exceptions_1.BadRequestException("fail to decode token, aud is required");
@@ -81,7 +81,7 @@ class TokenService {
         if (!Object.values(security_enum_1.AudienceEnum).includes(audience)) {
             throw new exceptions_1.BadRequestException("Invalid token");
         }
-        if (allowedTokenType.length && !allowedTokenType.includes(tokenType)) {
+        if (allowedTokenType?.length && !allowedTokenType.includes(tokenType)) {
             throw new exceptions_1.NotFoundException("Invalid token type");
         }
         if (decoded.jti && decoded.sub && await this.redis.get(this.redis.revokeTokenKey({ userId: decoded.sub, jti: decoded.jti }))) {

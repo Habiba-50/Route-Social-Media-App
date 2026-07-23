@@ -28,6 +28,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1036.0",
     "@upstash/redis": "^1.37.0",
     "bcrypt": "^6.0.0",
+    "cors": "^2.8.6",
     "cors-env": "^1.0.2",
     "cross-env": "^10.1.0",
     "dotenv": "^17.4.1",
@@ -39,6 +40,7 @@
     "multer": "^2.1.1",
     "nodemailer": "^8.0.5",
     "redis": "^5.11.0",
+    "socket.io": "^4.8.3",
     "zod": "^4.3.6"
   }
 }

@@ -25,11 +25,11 @@ export class UserService {
 
   // ------------------------------------ Get Profile -----------------------------------------------
 
-  public async profile(user?: HydratedDocument<IUser>): Promise<any> {
+  public async profile(user?: HydratedDocument<IUser>): Promise<{ user: IUser }> {
     if (user?.phone) {
       user.phone = await decrypt(user.phone);
     }
-    return user;
+    return { user: user as IUser };
   }
 
   // ------------------------------------ Rotate Token -----------------------------------------------

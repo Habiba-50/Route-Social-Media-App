@@ -48,7 +48,7 @@ class DatabaseRepository {
         const docs = await this.findAll({ filter: filter || {}, projection, options });
         return {
             docs: docs,
-            ...(Number(page) > 0 ? { currentPage: Number(page), size: Number(size), pages: Math.ceil(count / Number(size)) } : {})
+            ...(Number(page) > 0 ? { currentPage: Number(page), pageSize: Number(size), pages: Math.ceil(count / Number(size)) } : {})
         };
     }
     async findById({ _id, projection, options, }) {

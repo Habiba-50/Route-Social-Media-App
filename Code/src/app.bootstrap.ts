@@ -1,17 +1,26 @@
 import express, { NextFunction } from 'express';
-import { authRouter, notificationRouter, postRouter, userRouter } from './modules';
-import { globalErrorHandler } from './middleware';
+import { authRouter, notificationRouter, postRouter, realtimeGateway, schema, userRouter } from './modules';
+import { authentication, globalErrorHandler } from './middleware';
 import { port } from './config/config';
 import { connectDB } from './DB/connection.db';
-import { redisService, s3Service } from './common/services';
+import { redisService, s3Service} from './common/services';
 import { pipeline } from 'node:stream';
 import { promisify } from "node:util";
 import { successResponse } from './common/response';
+import { createHandler } from 'graphql-http/lib/use/express';
+import { Server as HttpServerType } from 'http'
+import cors from 'cors';
 
 const s3WriteStream = promisify(pipeline);
 
 const bootstrap = async () => {
     const app:express.Express = express();
+
+    // CORS Middleware
+    app.use(cors ({
+        origin: '*',
+        credentials: true
+    }));
 
     app.get('/', (req: express.Request, res: express.Response, next: NextFunction) => {
         res.status(200).json({ message: "Landing page" });
@@ -38,6 +47,9 @@ const bootstrap = async () => {
 
     // Middleware to parse JSON bodies
     app.use(express.json());
+
+    // Graphql endpoint
+    app.all('/graphql', authentication(), createHandler({ schema: schema, context : (req)=> ({user : req.raw.user , decoded: req.raw.decoded})}) );
 
     // Application Routing
     app.use("/auth", authRouter);
@@ -98,13 +110,19 @@ const bootstrap = async () => {
     await redisService.connent()
     // await connectRedis()
 
-    app.listen(port, () => {
+    const httpServer:HttpServerType = app.listen(port, () => {
         console.log("Server is running on port 3000 🚀");
     });
+
+    await realtimeGateway.initializeIO(httpServer);
+    
+
     console.log("Application bootstrapped successfully!");
 }
 
 export default bootstrap;
+
+
 
 
 

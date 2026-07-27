@@ -14,6 +14,7 @@ const node_util_1 = require("node:util");
 const response_1 = require("./common/response");
 const express_2 = require("graphql-http/lib/use/express");
 const cors_1 = __importDefault(require("cors"));
+const chat_1 = require("./modules/chat");
 const s3WriteStream = (0, node_util_1.promisify)(node_stream_1.pipeline);
 const bootstrap = async () => {
     const app = (0, express_1.default)();
@@ -30,6 +31,7 @@ const bootstrap = async () => {
     app.use("/user", modules_1.userRouter);
     app.use("/notification", modules_1.notificationRouter);
     app.use("/post", modules_1.postRouter);
+    app.use("/chat", chat_1.chatRouter);
     app.get("/uploads/*path", async (req, res, next) => {
         const { download, filename } = req.query;
         const { path } = req.params;

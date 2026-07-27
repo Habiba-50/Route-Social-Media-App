@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.realtimeGateway = exports.RealtimeGatway = void 0;
 const socket_io_1 = require("socket.io");
 const services_1 = require("../../common/services");
+const realtime_1 = require("../chat/realtime");
 class RealtimeGatway {
     io;
     tokenService;
@@ -33,6 +34,7 @@ class RealtimeGatway {
         this.io.of("/").use(this.authentication);
         this.io.on("connection", async (socket) => {
             console.log(`User Connected 👌`);
+            realtime_1.chatGateway.registerEvents(socket, this.io);
             const connections = await this.redisService.getSockets(socket.data.user._id.toString());
             console.log(`Connections are : ${connections.length}`);
             socket.on("disconnect", async () => {

@@ -2,18 +2,20 @@ import { Server as HttpServerType} from "node:http";
 import { Server } from "socket.io";
 import { IAuthSocket } from "../../common/types/express.types";
 import { redisService, RedisService, TokenService } from "../../common/services";
+import { chatGateway } from "../chat/realtime";
+
 
 
 export class RealtimeGatway{
     private io!:Server;  // assessment asertion operator (make sure)
     private tokenService:TokenService;
     private redisService:RedisService 
-    
+
     constructor(){
         this.redisService = redisService;
         this.tokenService = new TokenService();
-
     }
+    
 
     authentication = (async (socket: IAuthSocket, next: any) => {
         try {
@@ -31,6 +33,7 @@ export class RealtimeGatway{
         }
     })
 
+
     initializeIO = (httpServer : HttpServerType) => {
         this.io = new Server(httpServer , {
             cors: { origin: "*" }
@@ -40,12 +43,14 @@ export class RealtimeGatway{
         
             this.io.on("connection" , async (socket:IAuthSocket) => {
                 console.log(`User Connected 👌`)
+                chatGateway.registerEvents(socket, this.io);
                 const connections = await this.redisService.getSockets(socket.data.user._id.toString())
                 console.log(`Connections are : ${connections.length}`)
         
                 socket.on("disconnect", async () => {
                     console.log(`User Disconnected 😥`)
                     await this.redisService.removeSocket(socket.data.user._id.toString(), socket.id);
+                    
                     const connections = await this.redisService.getSockets(socket.data.user._id.toString())
                     console.log(`Connections are : ${connections.length}`)
                     if (connections.length < 1) {

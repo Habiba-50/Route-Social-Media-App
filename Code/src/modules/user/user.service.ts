@@ -1,12 +1,12 @@
 import { HydratedDocument, Types } from "mongoose";
 import { IUser } from "../../common/interfaces";
-import { decrypt } from "../../common/utils";
 import { JwtPayload } from "jsonwebtoken";
 import { ACCESS_TOKEN_EXPIRY, REFRESH_TOKEN_EXPIRY } from "../../config/config";
-import { conflictException } from "../../common/exceptions";
+import { conflictException} from "../../common/exceptions";
 import { RedisService, S3Service, TokenService } from "../../common/services";
-import { LogoutEnum, StorageApproachEnum, UploadApproachEnum } from "../../common/enums";
+import { ChatEnum, LogoutEnum, StorageApproachEnum, UploadApproachEnum } from "../../common/enums";
 import { UserRepository } from "../../DB/repository";
+import { ChatRepository } from "../../DB/repository/chat.repository";
 
 
 
@@ -15,21 +15,44 @@ export class UserService {
   private readonly tokenService: TokenService;
   private readonly redisService: RedisService;
   private readonly s3: S3Service
+  private readonly chatRepository: ChatRepository
 
   constructor() {
     this.userRepository = new UserRepository()
     this.tokenService = new TokenService();
     this.redisService = new RedisService();
     this.s3 = new S3Service()
+    this.chatRepository = new ChatRepository()
   }
 
   // ------------------------------------ Get Profile -----------------------------------------------
 
-  public async profile(user?: HydratedDocument<IUser>): Promise<{ user: IUser }> {
-    if (user?.phone) {
-      user.phone = await decrypt(user.phone);
-    }
-    return { user: user as IUser };
+  public async profile(user: HydratedDocument<IUser>): Promise<{ user: IUser, groups: any }> {
+    // if (user?.phone) {
+    //   user.phone = await decrypt(user.phone);
+    // }
+
+    // Populate friends 
+    const profile = await this.userRepository.findOne({
+      filter: { _id: user._id },
+      options: {
+        populate: [
+          { path: "friends", model: "User" },
+        ]
+      }
+    })
+
+    const groups = await this.chatRepository.findAll({ 
+      filter: { participants: { $in: [user._id] } , type:ChatEnum.OVM } ,
+      options: {
+        populate: {
+          path: "participants",
+          model: "User"
+        }
+      }
+    })
+    
+    return { user: profile as IUser, groups };
   }
 
   // ------------------------------------ Rotate Token -----------------------------------------------

@@ -10,6 +10,7 @@ import { successResponse } from './common/response';
 import { createHandler } from 'graphql-http/lib/use/express';
 import { Server as HttpServerType } from 'http'
 import cors from 'cors';
+import { chatRouter } from './modules/chat';
 
 const s3WriteStream = promisify(pipeline);
 
@@ -56,6 +57,8 @@ const bootstrap = async () => {
     app.use("/user", userRouter);
     app.use("/notification", notificationRouter);
     app.use("/post", postRouter);
+    app.use("/chat", chatRouter);
+    
     app.get("/uploads/*path", async (req: express.Request, res: express.Response, next: NextFunction): Promise<any> => {
         const {download , filename} = req.query as { download?: string , filename?: string }
         const { path } = req.params as { path: string[] }

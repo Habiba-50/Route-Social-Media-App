@@ -7,7 +7,7 @@ exports.emailEmitter.on("send-email", async (emailFunction) => {
     try {
         await emailFunction();
     }
-    catch {
-        console.log("Fail to send email");
+    catch (error) {
+        console.log("Fail to send email", error);
     }
 });

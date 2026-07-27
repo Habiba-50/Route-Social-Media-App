@@ -1,28 +1,44 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.UserService = void 0;
-const utils_1 = require("../../common/utils");
 const config_1 = require("../../config/config");
 const exceptions_1 = require("../../common/exceptions");
 const services_1 = require("../../common/services");
 const enums_1 = require("../../common/enums");
 const repository_1 = require("../../DB/repository");
+const chat_repository_1 = require("../../DB/repository/chat.repository");
 class UserService {
     userRepository;
     tokenService;
     redisService;
     s3;
+    chatRepository;
     constructor() {
         this.userRepository = new repository_1.UserRepository();
         this.tokenService = new services_1.TokenService();
         this.redisService = new services_1.RedisService();
         this.s3 = new services_1.S3Service();
+        this.chatRepository = new chat_repository_1.ChatRepository();
     }
     async profile(user) {
-        if (user?.phone) {
-            user.phone = await (0, utils_1.decrypt)(user.phone);
-        }
-        return { user: user };
+        const profile = await this.userRepository.findOne({
+            filter: { _id: user._id },
+            options: {
+                populate: [
+                    { path: "friends", model: "User" },
+                ]
+            }
+        });
+        const groups = await this.chatRepository.findAll({
+            filter: { participants: { $in: [user._id] }, type: enums_1.ChatEnum.OVM },
+            options: {
+                populate: {
+                    path: "participants",
+                    model: "User"
+                }
+            }
+        });
+        return { user: profile, groups };
     }
     async rotateToken(user, { sub, jti, iat }, issuer) {
         if ((iat + config_1.ACCESS_TOKEN_EXPIRY) * 1000 >

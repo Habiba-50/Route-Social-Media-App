@@ -10,7 +10,9 @@ const user_service_1 = __importDefault(require("./user.service"));
 const user_authorization_1 = require("./user.authorization");
 const enums_1 = require("../../common/enums");
 const multer_1 = require("../../common/utils/multer");
+const chat_1 = require("../chat");
 const router = (0, express_1.Router)();
+router.use("/:userId/chat", chat_1.chatRouter);
 router.get("/", (0, middleware_1.authentication)(), (0, middleware_1.authorization)(user_authorization_1.userAuthorization.profile), async (req, res, next) => {
     const data = await user_service_1.default.profile(req.user);
     return (0, response_1.successResponse)({ res, statusCode: 200, data });

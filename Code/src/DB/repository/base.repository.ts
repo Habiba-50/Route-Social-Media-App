@@ -18,7 +18,7 @@ import {
 import { IPaginate } from "../../common/interfaces";
 
 export class DatabaseRepository<TRawDocument> {
-  constructor(private readonly model: Model<TRawDocument>) {}
+  constructor(protected readonly model: Model<TRawDocument>) {}
 
   // ----------------------------------------Create method overloads----------------------------------------
 

@@ -36,8 +36,15 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.chatEvent = exports.ChatEvent = void 0;
 const middleware_1 = require("../../../middleware");
 const validators = __importStar(require("../chat.validation"));
+const chat_service_1 = require("../chat.service");
+const services_1 = require("../../../common/services");
 class ChatEvent {
-    constructor() { }
+    chatService;
+    redisService;
+    constructor() {
+        this.chatService = chat_service_1.chatService;
+        this.redisService = services_1.redisService;
+    }
     sayHi = async (socket) => {
         try {
             return socket.on("sayHi", async (data) => {
@@ -49,6 +56,38 @@ class ChatEvent {
         catch (error) {
             return socket.emit("custom_error", error);
         }
+    };
+    sendMessage = async (socket, io) => {
+        return socket.on("sendMessage", async ({ sendTo, content }) => {
+            try {
+                console.log(sendTo, content);
+                await (0, middleware_1.SocketValidation)(validators.sendMessage, { sendTo, content });
+                await this.chatService.sendMessage({ sendTo, content }, socket.data.user);
+                const socketIds = await this.redisService.getSockets(socket.data.user._id.toString());
+                io.to(socketIds).emit("successMessage", { content, sendTo });
+                const receiverSocketIds = await this.redisService.getSockets(sendTo);
+                if (receiverSocketIds.length) {
+                    socket.to(receiverSocketIds).emit("newMessage", { content, sendTo, from: socket.data.user });
+                }
+            }
+            catch (error) {
+                return socket.emit("custom_error", error);
+            }
+        });
+    };
+    sendGroupMessage = async (socket, io) => {
+        return socket.on("sendGroupMessage", async ({ groupId, content }) => {
+            try {
+                console.log(groupId, content);
+                await (0, middleware_1.SocketValidation)(validators.sendGroupMessage, { groupId, content });
+                await this.chatService.sendGroupMessage({ groupId, content }, socket.data.user);
+                const socketIds = await this.redisService.getSockets(socket.data.user._id.toString());
+                io.to(socketIds).emit("successMessage", { content, sendTo: groupId });
+            }
+            catch (error) {
+                return socket.emit("custom_error", error);
+            }
+        });
     };
 }
 exports.ChatEvent = ChatEvent;

@@ -13,16 +13,21 @@ const enums_1 = require("../../common/enums");
 const post_1 = require("../../common/utils/post");
 const objectId_1 = require("../../common/utils/objectId");
 const comment_service_1 = require("../comment/comment.service");
+const realtime_1 = require("../realtime");
 class PostService {
     postRepository;
     mentionService;
     commentService;
     s3;
+    redisService;
+    realtimeGateway;
     constructor() {
         this.postRepository = new repository_1.PostRepository();
         this.mentionService = services_1.mentionService;
         this.commentService = new comment_service_1.CommentService();
         this.s3 = services_1.s3Service;
+        this.redisService = services_1.redisService;
+        this.realtimeGateway = realtime_1.realtimeGateway;
     }
     normalizePostResponse(post) {
         const data = post?.toJSON?.() ?? post;
@@ -196,12 +201,28 @@ class PostService {
                     ? { $addToSet: { likes: { react: Number(react), userId: user._id } } }
                     : { $pull: { likes: { userId: user._id } } }),
             },
-            options: { new: true, populate: [{ path: "likes.userId", select: "-password" }] }
+            options: {
+                new: true,
+                populate: [
+                    { path: "createdBy" },
+                    { path: "likes.userId" }
+                ]
+            }
         });
         if (!post) {
             throw new exceptions_1.NotFoundException("Post not found");
         }
-        return post.toJSON();
+        const owner = post.createdBy;
+        const socketIds = await this.redisService.getSockets(owner._id);
+        console.log("Socket Id's:", socketIds);
+        if (socketIds.length && Number(react) > 0) {
+            this.realtimeGateway.getIo().to(socketIds).emit("react_post", {
+                postId: post._id,
+                react: Number(react),
+                userId: user._id
+            });
+        }
+        return post;
     }
     async getPost(id, user) {
         const post = await this.postRepository.findOne({

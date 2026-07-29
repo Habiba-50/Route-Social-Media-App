@@ -74,40 +74,56 @@ class UserService {
         }
         return status;
     }
-    async profileImage(user, file) {
-        const { Key } = await this.s3.uploadLargeAsset({
-            file,
-            path: `Users/${user._id.toString()}/Profile`,
-            storageApproach: enums_1.StorageApproachEnum.DISK
-        });
-        user.profilePicture = Key;
-        await user.save();
-        return user.toJSON();
-    }
     async profileImagePresignedUrl(user, { ContentType, Originalname }) {
-        const { presignedUrl } = await this.s3.createPresignedUploadLink({
+        const { presignedUrl, Key } = await this.s3.createPresignedUploadLink({
             path: `Users/${user._id.toString()}/Profile`,
             ContentType,
             Originalname,
         });
         return {
             presignedUrl,
-            user
+            Key
         };
     }
+    async confirmProfileImage(user, key) {
+        if (!key) {
+            throw new exceptions_1.BadRequestException("Key is required");
+        }
+        const exists = await this.s3.checkAssetExist({ Key: key });
+        if (!exists) {
+            throw new exceptions_1.BadRequestException("Image does not exist on S3 storage. Please upload the file first.");
+        }
+        if (user.profilePicture && user.profilePicture !== key) {
+            await this.s3.deleteAsset({ Key: user.profilePicture });
+        }
+        user.profilePicture = key;
+        await user.save();
+        return user.toJSON();
+    }
     async profileCoverImages(user, files) {
-        const oldCovers = user.profileCoveredPictures;
+        const oldCovers = user.profileCoveredPictures || [];
         const urls = await this.s3.uploadAssets({
             files,
             path: `Users/${user._id.toString()}/Profile/Covers`,
             storageApproach: enums_1.StorageApproachEnum.DISK,
             uploadApproach: enums_1.UploadApproachEnum.SMALL
         });
-        user.profileCoveredPictures = [...(user.profileCoveredPictures || []), ...urls];
-        await user.save();
-        if (oldCovers && oldCovers.length > 0) {
-            await this.s3.deleteAssets({ Keys: oldCovers.map((key) => ({ Key: key })) });
+        console.log("Urls :", urls);
+        console.log("Old Covers :", oldCovers);
+        const allCovers = [...oldCovers, ...urls];
+        if (allCovers.length > 4) {
+            const deletedCovers = allCovers.slice(0, allCovers.length - 4);
+            await this.s3.deleteAssets({
+                Keys: deletedCovers.map((key) => ({
+                    Key: key
+                }))
+            });
+            user.profileCoveredPictures = allCovers.slice(-4);
         }
+        else {
+            user.profileCoveredPictures = allCovers;
+        }
+        await user.save();
         return user.toJSON();
     }
     async deleteUser(userId, user) {

@@ -4,6 +4,8 @@ import { PostRepository } from "../../DB/repository";
 import {
   mentionService,
   MentionService,
+  redisService,
+  RedisService,
   s3Service,
   S3Service,
 } from "../../common/services";
@@ -25,6 +27,7 @@ import { RoleEnum } from "../../common/enums";
 import { getAvailability } from "../../common/utils/post";
 import { toObjectId } from "../../common/utils/objectId";
 import { CommentService } from "../comment/comment.service";
+import { realtimeGateway, RealtimeGatway } from "../realtime";
 
 export class PostService {
   private readonly postRepository: PostRepository;
@@ -32,6 +35,8 @@ export class PostService {
   private readonly mentionService: MentionService;
   private readonly commentService: CommentService
   private readonly s3: S3Service;
+  private readonly redisService: RedisService;
+  private readonly realtimeGateway: RealtimeGatway
 
   constructor() {
     this.postRepository = new PostRepository();
@@ -39,6 +44,8 @@ export class PostService {
     this.mentionService = mentionService;
     this.commentService = new CommentService();
     this.s3 = s3Service;
+    this.redisService = redisService;
+    this.realtimeGateway = realtimeGateway;
   }
 
   private normalizePostResponse(post: any) {
@@ -320,7 +327,13 @@ export class PostService {
           ? { $addToSet: { likes: { react: Number(react), userId: user._id } } }
           : { $pull: { likes: { userId: user._id } } }),
       },
-      options: { new: true , populate:[{path:"likes.userId" , select:"-password"}]}
+      options: {
+        new: true,
+        populate: [
+          { path: "createdBy" },
+          { path: "likes.userId"}
+        ]
+      }
     });
 
     // console.log(post);
@@ -329,7 +342,20 @@ export class PostService {
       throw new NotFoundException("Post not found");
     }
 
-    return post.toJSON();
+
+    const owner = post.createdBy as HydratedDocument<IUser>;
+    const socketIds = await this.redisService.getSockets(owner._id as Types.ObjectId)
+    console.log("Socket Id's:" , socketIds)
+    if(socketIds.length && Number(react) > 0 ){
+      this.realtimeGateway.getIo().to(socketIds).emit("react_post", {
+        postId:post._id,
+        react:Number(react),
+        userId:user._id
+      })
+    }
+
+
+    return post;
   }
 
   // ------------------------------- Get Post -------------------------------

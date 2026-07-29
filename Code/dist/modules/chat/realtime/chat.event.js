@@ -78,11 +78,23 @@ class ChatEvent {
     sendGroupMessage = async (socket, io) => {
         return socket.on("sendGroupMessage", async ({ groupId, content }) => {
             try {
-                console.log(groupId, content);
                 await (0, middleware_1.SocketValidation)(validators.sendGroupMessage, { groupId, content });
-                await this.chatService.sendGroupMessage({ groupId, content }, socket.data.user);
+                const roomId = await this.chatService.sendGroupMessage({ groupId, content }, socket.data.user);
                 const socketIds = await this.redisService.getSockets(socket.data.user._id.toString());
-                io.to(socketIds).emit("successMessage", { content, sendTo: groupId });
+                io.to(socketIds).emit("successMessage", { content, groupId });
+                socket.to(roomId).emit("newMessage", { content, groupId });
+            }
+            catch (error) {
+                return socket.emit("custom_error", error);
+            }
+        });
+    };
+    joinRoom = async (socket, io) => {
+        return socket.on("join_room", async ({ roomId }) => {
+            try {
+                socket.join(roomId);
+                const socketIds = await this.redisService.getSockets(roomId);
+                io.to(socketIds).emit("successMessage", { content: "User joined the room", sendTo: roomId });
             }
             catch (error) {
                 return socket.emit("custom_error", error);

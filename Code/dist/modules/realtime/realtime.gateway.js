@@ -48,6 +48,9 @@ class RealtimeGatway {
             });
         });
     };
+    getIo() {
+        return this.io;
+    }
 }
 exports.RealtimeGatway = RealtimeGatway;
 exports.realtimeGateway = new RealtimeGatway();

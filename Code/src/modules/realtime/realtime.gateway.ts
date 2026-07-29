@@ -61,6 +61,10 @@ export class RealtimeGatway{
         
         
     }
+
+    getIo() :Server{
+        return this.io;
+    } 
 }
 
 export const realtimeGateway = new RealtimeGatway()

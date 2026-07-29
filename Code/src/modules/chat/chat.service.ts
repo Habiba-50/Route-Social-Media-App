@@ -108,6 +108,7 @@ export class ChatService {
 
         const users = await this.userRepository.findAll({ filter: { _id: { $in: participantsIds }, friends: { $in: [user._id] } } })
         // console.log("friends",users)
+        
         console.log("participantsIds length:", participantsIds.length);
         console.log("users length:", users?.length);
         if(users?.length !== participantsIds.length){
@@ -159,13 +160,19 @@ export class ChatService {
             options: {
                 populate: [
                     {
-                        path: "participants",
+                        path: "participants", 
+                        select:"username profilePicture"  
+                    },
+                    {
+                        path:"messages.createdBy",
                     }
                 ]
             },
             page,
             size
         })
+
+        // console.log("chat",chat);
 
         if (!chat) {
 
@@ -177,7 +184,7 @@ export class ChatService {
     
     // ----------------------------- Send Group Message -----------------------------------
 
-    async sendGroupMessage({ groupId, content }: { groupId: string, content: string }, user: HydratedDocument<IUser>): Promise<void> {
+    async sendGroupMessage({ groupId, content }: { groupId: string, content: string }, user: HydratedDocument<IUser>): Promise<string> {
        
         const chat = await this.chatRepository.findOneAndUpdate({
             filter: {
@@ -198,6 +205,8 @@ export class ChatService {
         if (!chat) {
             throw new NotFoundException("Fail to send message in group.")
         }
+
+        return chat.roomId
     }
 
 

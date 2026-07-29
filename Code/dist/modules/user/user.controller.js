@@ -25,9 +25,12 @@ router.post("/logout", (0, middleware_1.authentication)(), async (req, res, next
     const status = await user_service_1.default.logout(req.body.flag, req.user, req.decoded);
     return (0, response_1.successResponse)({ res, statusCode: status, data: { message: "Logged out successfully" } });
 });
-router.patch("/profile-image", (0, middleware_1.authentication)(), async (req, res, next) => {
-    console.log("body", req.body);
+router.patch("/profile-image-URL", (0, middleware_1.authentication)(), async (req, res, next) => {
     const data = await user_service_1.default.profileImagePresignedUrl(req.user, req.body);
+    return (0, response_1.successResponse)({ res, data });
+});
+router.patch("/profile-image/confirm", (0, middleware_1.authentication)(), async (req, res, next) => {
+    const data = await user_service_1.default.confirmProfileImage(req.user, req.body.key || req.body.Key);
     return (0, response_1.successResponse)({ res, data });
 });
 router.patch("/cover-images", (0, middleware_1.authentication)(), (0, multer_1.cloudFileUpload)({

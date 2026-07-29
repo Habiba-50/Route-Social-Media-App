@@ -14,6 +14,7 @@ export class ChatGateway {
         this.chatEvent.sayHi(socket);
         this.chatEvent.sendMessage(socket, io);
         this.chatEvent.sendGroupMessage(socket, io);
+        this.chatEvent.joinRoom(socket, io);
     }
 }
 

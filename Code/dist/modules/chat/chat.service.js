@@ -120,6 +120,10 @@ class ChatService {
                 populate: [
                     {
                         path: "participants",
+                        select: "username profilePicture"
+                    },
+                    {
+                        path: "messages.createdBy",
                     }
                 ]
             },
@@ -151,6 +155,7 @@ class ChatService {
         if (!chat) {
             throw new exceptions_1.NotFoundException("Fail to send message in group.");
         }
+        return chat.roomId;
     }
 }
 exports.ChatService = ChatService;

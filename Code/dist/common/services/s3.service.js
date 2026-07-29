@@ -117,6 +117,19 @@ class S3Service {
         });
         return await this.client.send(command);
     }
+    async checkAssetExist({ Key, Bucket = config_1.AWS_BUCKET_NAME, }) {
+        try {
+            const command = new client_s3_1.HeadObjectCommand({
+                Bucket,
+                Key,
+            });
+            await this.client.send(command);
+            return true;
+        }
+        catch (error) {
+            return false;
+        }
+    }
     async createPreSignedFetchLink({ Bucket = config_1.AWS_BUCKET_NAME, Key, expiresIn = config_1.AWS_EXPIRES_IN, fileName, download, }) {
         const command = new client_s3_1.GetObjectCommand({
             Bucket,

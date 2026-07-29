@@ -54,25 +54,24 @@ router.post("/logout", authentication(), async (req:Request, res:Response , next
 
 
 // ---------------------------------- Profile Image---------------------------------------
-// router.patch("/profile-image", 
-//     authentication(),
-//     cloudFileUpload({
-//         validation: fileFieldValidation.image,
-//         storageApproach: StorageApproachEnum.DISK,
-//     }).single("attachment"),
-//     async (req: Request, res: Response, next: NextFunction) => {
-//         const data = await userService.profileImage(req.user , req.file as Express.Multer.File)
-//         return successResponse({res , data })
-//     }
-// )
 
 // Pre-signed URL for profile image
-router.patch("/profile-image",
+router.patch("/profile-image-URL",
     authentication(),
     async (req: Request, res: Response, next: NextFunction) => {
-        console.log("body",req.body)
+        // console.log("body",req.body)
         const data = await userService.profileImagePresignedUrl(req.user, req.body)
         return successResponse({res , data })
+    }
+)
+
+
+// Confirm profile image after S3 upload
+router.patch("/profile-image/confirm",
+    authentication(),
+    async (req: Request, res: Response, next: NextFunction) => {
+        const data = await userService.confirmProfileImage(req.user, req.body.key || req.body.Key)
+        return successResponse({ res, data })
     }
 )
 

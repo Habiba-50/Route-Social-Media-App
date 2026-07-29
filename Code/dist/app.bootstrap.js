@@ -44,6 +44,8 @@ const bootstrap = async () => {
         }
         return await s3WriteStream(Body, res);
     });
+
+    // Pre-signed URL for fetching assets
     app.get("/pre-signed/*path", async (req, res, next) => {
         const { download, fileName } = req.query;
         const { path } = req.params;
@@ -51,6 +53,7 @@ const bootstrap = async () => {
         const url = await services_1.s3Service.createPreSignedFetchLink({ Key, download, fileName });
         return (0, response_1.successResponse)({ res, data: { url } });
     });
+
     app.get("/*dummy", (req, res, next) => {
         res.status(404).json({ message: "Invalid application routing" });
     });

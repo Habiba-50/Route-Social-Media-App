@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, ObjectCannedACL, CompleteMultipartUploadCommandOutput, GetObjectCommand, GetObjectCommandOutput, DeleteObjectCommandOutput, DeleteObjectCommand, DeleteObjectsCommandOutput, DeleteObjectsCommand, ListObjectsV2Command, ListObjectsV2CommandOutput } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, ObjectCannedACL, CompleteMultipartUploadCommandOutput, GetObjectCommand, GetObjectCommandOutput, DeleteObjectCommandOutput, DeleteObjectCommand, DeleteObjectsCommandOutput, DeleteObjectsCommand, ListObjectsV2Command, ListObjectsV2CommandOutput, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { createReadStream } from "fs"; // Used for disk storage [1]
 import { APPLICATION_NAME, AWS_ACCESS_KEY_ID, AWS_BUCKET_NAME, AWS_EXPIRES_IN, AWS_REGION, AWS_SECRET_ACCESS_KEY } from "../../config/config";
 import { randomUUID } from "crypto";
@@ -284,6 +284,25 @@ export class S3Service {
     });
 
     return await this.client.send(command);
+  }
+
+  async checkAssetExist({
+    Key,
+    Bucket = AWS_BUCKET_NAME,
+  }: {
+    Key: string;
+    Bucket?: string;
+  }): Promise<boolean> {
+    try {
+      const command = new HeadObjectCommand({
+        Bucket,
+        Key,
+      });
+      await this.client.send(command);
+      return true;
+    } catch (error) {
+      return false;
+    }
   }
 
   async createPreSignedFetchLink({

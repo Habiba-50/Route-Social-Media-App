@@ -2,7 +2,7 @@ import { HydratedDocument, Types } from "mongoose";
 import { IUser } from "../../common/interfaces";
 import { JwtPayload } from "jsonwebtoken";
 import { ACCESS_TOKEN_EXPIRY, REFRESH_TOKEN_EXPIRY } from "../../config/config";
-import { conflictException} from "../../common/exceptions";
+import { BadRequestException, conflictException } from "../../common/exceptions";
 import { RedisService, S3Service, TokenService } from "../../common/services";
 import { ChatEnum, LogoutEnum, StorageApproachEnum, UploadApproachEnum } from "../../common/enums";
 import { UserRepository } from "../../DB/repository";
@@ -121,31 +121,30 @@ export class UserService {
   }
 
   // -------------------------- Profile Image ---------------------------------------    
-  public async profileImage(user: HydratedDocument<IUser>, file: Express.Multer.File): Promise<any> {
-    const { Key } = await this.s3.uploadLargeAsset({
-      file,
-      path: `Users/${user._id.toString()}/Profile`,
-      storageApproach: StorageApproachEnum.DISK
-    })
+  //   public async profileImage(user: HydratedDocument<IUser>, {file}: {file: Express.Multer.File}): Promise<any> {
+  //   const { Key } = await this.s3.uploadLargeAsset({
+  //     file,
+  //     path: `Users/${user._id.toString()}/Profile`,
+  //     storageApproach: StorageApproachEnum.DISK
+  //   })
 
-    // console.log(result);
-    user.profilePicture = Key as string;
+  //   console.log(Key);
+  //   user.profilePicture = Key as string;
 
-    await user.save()
+  //   await user.save()
+  //   console.log(user)
 
-    return user.toJSON()
-  }
+  //   return user.toJSON()
+  // }
 
   // -----------------------------  Profile Image Presigned URL ------------------------------
 
   public async profileImagePresignedUrl(
     user: HydratedDocument<IUser>,
     { ContentType, Originalname }: { ContentType: string, Originalname: string })
-    : Promise<{ presignedUrl: string, user: HydratedDocument<IUser> }> {
-    
-    // const oldPic = user.profilePicture
+    : Promise<{ presignedUrl: string, Key: string }> {
 
-    const { presignedUrl} = await this.s3.createPresignedUploadLink({
+    const { presignedUrl, Key } = await this.s3.createPresignedUploadLink({
       path: `Users/${user._id.toString()}/Profile`,
       ContentType,
       Originalname,
@@ -160,15 +159,45 @@ export class UserService {
 
     return {
       presignedUrl,
-      user
+      Key
     }
+  }
+
+  // -----------------------------  Confirm Profile Image ------------------------------
+
+  public async confirmProfileImage(
+    user: HydratedDocument<IUser>,
+    key: string
+  ): Promise<any> {
+    if (!key) {
+      throw new BadRequestException("Key is required");
+    }
+
+    const exists = await this.s3.checkAssetExist({ Key: key });
+    if (!exists) {
+      throw new BadRequestException("Image does not exist on S3 storage. Please upload the file first.");
+    }
+
+    // Delete old profile picture from S3 if exists
+    if (user.profilePicture && user.profilePicture !== key) {
+      await this.s3.deleteAsset({ Key: user.profilePicture });
+    }
+
+    user.profilePicture = key;
+    await user.save();
+
+    return user.toJSON();
   }
 
 
   // -------------------------- Profile Cover Images ---------------------------------------
-  public async profileCoverImages(user: HydratedDocument<IUser>, files: Express.Multer.File[]): Promise<any> {
-   
-    const oldCovers = user.profileCoveredPictures
+  public async profileCoverImages(
+    user: HydratedDocument<IUser>,
+    files: Express.Multer.File[]
+  ): Promise<any> {
+
+    const oldCovers = user.profileCoveredPictures || []
+
     const urls = await this.s3.uploadAssets({
       files,
       path: `Users/${user._id.toString()}/Profile/Covers`,
@@ -176,14 +205,39 @@ export class UserService {
       uploadApproach: UploadApproachEnum.SMALL
     })
 
-    // console.log(result);
-    user.profileCoveredPictures = [...(user.profileCoveredPictures || []), ...urls] as string[]
+    console.log("Urls :", urls)
+    console.log("Old Covers :", oldCovers)
+
+
+    const allCovers = [...oldCovers, ...urls]
+
+
+    // if(allCovers.length > 4) delete oldest covers
+    if (allCovers.length > 4) {
+
+      const deletedCovers = allCovers.slice(0, allCovers.length - 4)
+
+      await this.s3.deleteAssets({
+        Keys: deletedCovers.map((key) => ({
+          Key: key
+        }))
+      })
+
+
+      user.profileCoveredPictures = allCovers.slice(-4) as string[]
+      // that means the last 4 covers are the new covers
+      
+
+    } else {
+
+      user.profileCoveredPictures = allCovers as string[]
+
+    }
+
 
     await user.save()
 
-    if(oldCovers && oldCovers.length > 0) {
-      await this.s3.deleteAssets({ Keys: oldCovers.map((key) => ({ Key: key })) })
-    }
+
     return user.toJSON()
   }
 

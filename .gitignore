@@ -5,3 +5,9 @@ node_modules/
 /Code/.env.development
 /Code/.env.production
 /Code/node_modules
+
+# Config Files (Critical)
+/Code/src/config/c45-route-74549-firebase-adminsdk-fbsvc-1e9726bc95.json
+# /Code/src/config/social-media-c1b2d-firebase-adminsdk-77a29-c0d23276ed.json
+
+Issues.md

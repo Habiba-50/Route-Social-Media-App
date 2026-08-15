@@ -6,6 +6,7 @@ const exceptions_1 = require("../exceptions");
 const objectId_1 = require("../utils/objectId");
 const notification_service_1 = require("./notification.service");
 const redis_service_1 = require("./redis.service");
+const enums_1 = require("../enums");
 class MentionService {
     userRepository;
     redis;
@@ -49,17 +50,21 @@ class MentionService {
     async sendMentionNotifications({ user, tags, entityId, message, }) {
         if (!tags?.length)
             return;
-        const fcmResults = await Promise.all(tags.map((tag) => this.redis.getFCMs(tag)));
-        const fcmTokens = new Set(fcmResults.filter(Boolean).flat());
-        if (!fcmTokens.size)
-            return;
-        this.notificationService
-            .sendNotifications({
-            tokens: [...fcmTokens],
-            title: `${user.username} mentioned you`,
-            body: JSON.stringify({ message, entityId }),
-        })
-            .catch((err) => console.error("Failed to send mention notifications", err));
+        Promise.allSettled(tags.map(async (tagUserId) => {
+            const tokens = await this.redis.getFCMs(tagUserId);
+            if (tokens?.length) {
+                await this.notificationService.sendNotifications({
+                    userId: tagUserId,
+                    tokens,
+                    title: `${user.username} mentioned you in a comment`,
+                    body: message,
+                    entityId,
+                    entityType: "post",
+                    senderId: user._id.toString(),
+                    type: enums_1.NotificationType.MENTION,
+                });
+            }
+        })).catch((err) => console.error("Failed to send mention notifications", err));
     }
 }
 exports.MentionService = MentionService;

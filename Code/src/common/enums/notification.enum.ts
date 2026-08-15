@@ -3,5 +3,8 @@ export enum NotificationType {
     COMMENT = "COMMENT",
     TAG = "TAG",
     REPLY = "REPLY",
+    NEW_LOGIN = "NEW_LOGIN",
+    MENTION = "MENTION",
+    POST = "POST",
     
 }

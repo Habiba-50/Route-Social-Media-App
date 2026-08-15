@@ -1,7 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.notificationModuleService = exports.NotificationModuleService = void 0;
 const notification_repository_1 = require("../../DB/repository/notification.repository");
-class notificationService {
+const exceptions_1 = require("../../common/exceptions");
+class NotificationModuleService {
     notificationRepository;
     constructor() {
         this.notificationRepository = new notification_repository_1.NotificationRepository();
@@ -17,15 +19,15 @@ class notificationService {
                 postId = ref?._id;
                 break;
             case "comment":
-                text = `${sender.username} commented: "${ref?.content}"`;
+                text = `${sender.username} commented on your post : "${ref?.content}"`;
                 postId = ref?.postId;
                 break;
             case "reply":
-                text = `${sender.username} replied: "${ref?.content}"`;
-                postId = ref?.commentId?.postId;
+                text = `${sender.username} replied on your comment : "${ref?.content}"`;
+                postId = ref?.postId;
                 break;
             case "tag":
-                text = `${sender.username} tagged you`;
+                text = `${sender.username} tagged you on your post: "${ref?.content}"`;
                 postId = ref?._id;
                 break;
             default:
@@ -56,40 +58,104 @@ class notificationService {
             }
         });
     }
-    async getAll(userId) {
-        const data = await this.notificationRepository.findAll({
-            filter: { receiverId: userId },
+    async getNotificationList({ page, size, search, }, user) {
+        const notifications = await this.notificationRepository.paginate({
+            filter: {
+                receiverId: user._id,
+                ...(search ? { title: { $regex: search, $options: "i" }, body: { $regex: search, $options: "i" } } : {}),
+            },
+            page,
+            size,
             options: {
                 sort: { createdAt: -1 },
                 populate: [
-                    {
-                        path: "senderId",
-                        select: "username profileImage"
-                    },
-                    {
-                        path: "referenceId"
-                    }
+                    { path: "senderId" },
                 ]
-            },
+            }
         });
-        const notifications = data?.map((notification) => this.formatNotification(notification));
-        return notifications;
+        return {
+            ...notifications,
+            docs: (notifications.docs || []).map((notification) => this.formatNotification(notification)),
+        };
     }
-    async getUnreadCount(userId) {
-        const data = await this.notificationRepository.findAll({
-            filter: { receiverId: userId, isRead: false },
+    async getNotificationById(notificationId, user) {
+        const data = await this.notificationRepository.findOneAndUpdate({
+            filter: { _id: notificationId, receiverId: user._id },
+            update: { isRead: true },
+            options: {
+                populate: [
+                    { path: "senderId" },
+                    { path: "referenceId" },
+                ]
+            }
         });
         if (!data) {
-            return 0;
+            throw new exceptions_1.NotFoundException("Notification not found");
         }
-        return data.length;
-    }
-    async markAsRead(notificationId) {
-        const data = await this.notificationRepository.updateOne({
-            filter: { _id: notificationId },
-            update: { isRead: true }
-        });
         return data;
     }
+    async getUnreadCount(user) {
+        const data = await this.notificationRepository.findAll({
+            filter: { receiverId: user._id, isRead: false },
+        });
+        return { count: data?.length || 0 };
+    }
+    async markAllAsRead(user) {
+        await this.notificationRepository.updateMany({
+            filter: { receiverId: user._id },
+            update: { isRead: true },
+        });
+        return { message: "All notifications marked as read" };
+    }
+    async getUnreadNotifications(user, { page, size }) {
+        const notifications = await this.notificationRepository.paginate({
+            filter: { receiverId: user._id, isRead: false },
+            page,
+            size,
+            options: {
+                sort: { createdAt: -1 },
+                populate: [
+                    { path: "senderId" },
+                ]
+            }
+        });
+        return {
+            ...notifications,
+            docs: (notifications.docs || []).map((notification) => this.formatNotification(notification)),
+        };
+    }
+    async deleteNotification(notificationId, user) {
+        const data = await this.notificationRepository.findOneAndUpdate({
+            filter: { _id: notificationId, receiverId: user._id, isDeleted: false },
+            update: { isDeleted: true },
+            options: {
+                populate: [
+                    { path: "senderId" },
+                ]
+            }
+        });
+        if (!data) {
+            throw new exceptions_1.NotFoundException("Notification not found");
+        }
+        return data;
+    }
+    async deleteAllNotifications(user) {
+        const data = await this.notificationRepository.findAll({
+            filter: { receiverId: user._id, isDeleted: false },
+            options: {
+                populate: [
+                    { path: "senderId" },
+                ]
+            }
+        });
+        for (const notification of data) {
+            await this.notificationRepository.findOneAndUpdate({
+                filter: { _id: notification._id },
+                update: { isDeleted: true },
+            });
+        }
+        return { message: "All notifications deleted" };
+    }
 }
-exports.default = new notificationService();
+exports.NotificationModuleService = NotificationModuleService;
+exports.notificationModuleService = new NotificationModuleService();

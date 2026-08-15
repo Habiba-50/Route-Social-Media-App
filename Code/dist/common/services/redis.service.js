@@ -152,7 +152,7 @@ class RedisService {
         }
     }
     FCM_key(userId) {
-        return `user:FCM:${userId}`;
+        return `user:FCM:${userId.toString()}`;
     }
     async addFCM(userId, FCMToken) {
         return await this.client.sAdd(this.FCM_key(userId), FCMToken);

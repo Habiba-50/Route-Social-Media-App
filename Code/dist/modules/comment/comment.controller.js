@@ -95,6 +95,10 @@ router.patch('/:commentId/react', (0, middleware_1.authentication)(), (0, middle
     const data = await comment_service_1.commentService.reactComment(req.params, req.query, req.user);
     return (0, response_1.successResponse)({ res, statusCode: 200, data });
 });
+router.patch('/:commentId/reply/:replyId/react', (0, middleware_1.authentication)(), (0, middleware_1.validation)(validators.reactReply), async (req, res, next) => {
+    const data = await comment_service_1.commentService.reactReply(req.params, req.query, req.user);
+    return (0, response_1.successResponse)({ res, statusCode: 200, data });
+});
 router.delete('/:commentId/destroy', (0, middleware_1.authentication)(), (0, middleware_1.validation)(validators.deleteComment), async (req, res, next) => {
     const data = await comment_service_1.commentService.destroyComment(req.params, req.user);
     return (0, response_1.successResponse)({ res, statusCode: 200, data });

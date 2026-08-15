@@ -1,5 +1,5 @@
 import { OAuth2Client } from "google-auth-library";
-import { EmailEnum, ProviderEnum } from "../../common/enums";
+import { EmailEnum, NotificationType, ProviderEnum } from "../../common/enums";
 import {  conflictException, NotFoundException } from "../../common/exceptions";
 import { NotificationService, RedisService, redisService, TokenService } from "../../common/services";
 import { createNumberOtp } from "../../common/utils";
@@ -8,6 +8,7 @@ import { compareHash, generateHash } from "../../common/utils/security";
 import { UserRepository } from "../../DB/repository";
 import { LoginDto, SignupDto } from "./auth.dto";
 import { WEB_CLIENT_ID } from "../../config/config";
+import {  NotificationModuleService } from "../notification";
 
 
 class AuthenticationService{
@@ -15,8 +16,9 @@ class AuthenticationService{
     private userRepository: UserRepository;
     private redis: RedisService;
     private tokenService: TokenService;
-    private notificationService : NotificationService;
-    
+    private notificationService: NotificationService;
+    private notificationServiceModule:NotificationModuleService;
+  
     
 
     constructor() { 
@@ -24,6 +26,7 @@ class AuthenticationService{
         this.redis = redisService
         this.tokenService = new TokenService()
         this.notificationService = new NotificationService()
+        this.notificationServiceModule = new NotificationModuleService()
     }
 
     // public login (data: LoginDto): any { 
@@ -254,6 +257,7 @@ class AuthenticationService{
         const user = await this.userRepository.findOne({
             filter: { email, provider: ProviderEnum.SYSTEM },
         });
+        console.log("User: ", user);
 
         if (!user) {
             throw new NotFoundException("Fail to find matching account");
@@ -268,19 +272,56 @@ class AuthenticationService{
         }
 
         if (fcm) {
+            // console.log("FCM Token: ", fcm);
             await this.redis.addFCM(user._id as unknown as string, fcm);
             const tokens = await this.redis.getFCMs(user._id as unknown as string);
-            if (tokens?.length > 0) {
+            // console.log("FCM Tokens: ", tokens);
+            // console.log("User ID: ", user._id);
+            if (tokens?.length > 1) {
                 await this.notificationService.sendNotifications({
+                    userId: user._id.toString(),
                     tokens: tokens,
-                    title: "Login",
-                    body: `New login at ${new Date()}`
+                    title: `${user.username} Login`,
+                    body: `New login at ${new Date()}`,
+                    entityId: user._id.toString(),
+                    entityType: "User",
+                    senderId: user._id.toString(),
+                    type: String(NotificationType.NEW_LOGIN)
+                    // Firebase not support NotificationType enum
                 })
+
+                // console.log("Multiple login notification sent successfully");
             }
-            
+
+            await this.notificationService.sendNotification({
+                userId: user._id.toString(),
+                token: fcm,
+                title: `${user.username} Login`,
+                body: `New login at ${new Date()}`,
+                entityId: user._id.toString(),
+                entityType: "User",
+                senderId: user._id.toString(),
+                type: String(NotificationType.NEW_LOGIN),
+                // Firebase not support NotificationType enum
+            })
+
+            // console.log("Single login notification sent successfully");
+
         }
 
-        return await this.tokenService.createLoginCredentials({ user, issuer });
+        const credentials = await this.tokenService.createLoginCredentials({ user, issuer });
+        // console.log("Credentials: ", credentials);
+        
+        await this.notificationServiceModule.createNotification({
+            title: "New Login",
+            body: `New login at ${new Date()}`,
+            senderId: user._id,
+            receiverId: user._id,
+            type: NotificationType.NEW_LOGIN,
+        });
+
+        return credentials;
+
     };
 
     // -----------------------------Login Gmail-------------------------------

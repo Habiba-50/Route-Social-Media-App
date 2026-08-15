@@ -54,6 +54,16 @@ export const reactComment = {
     postId: generalValidationFields.id,
     commentId: generalValidationFields.id,
   })
+} 
+export const reactReply = {
+  query: z.strictObject({
+    react: z.coerce.number()
+  }),
+  params: z.strictObject({
+    postId: generalValidationFields.id,
+    commentId: generalValidationFields.id,
+    replyId: generalValidationFields.id,
+  })
 }
 
 

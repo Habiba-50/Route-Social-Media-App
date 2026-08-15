@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getComment = exports.reactComment = exports.deleteComment = exports.replyOnComment = exports.createComment = void 0;
+exports.getComment = exports.reactReply = exports.reactComment = exports.deleteComment = exports.replyOnComment = exports.createComment = void 0;
 const zod_1 = require("zod");
 const validation_1 = require("../../common/validation");
 const multer_1 = require("../../common/utils/multer");
@@ -48,6 +48,16 @@ exports.reactComment = {
     params: zod_1.z.strictObject({
         postId: validation_1.generalValidationFields.id,
         commentId: validation_1.generalValidationFields.id,
+    })
+};
+exports.reactReply = {
+    query: zod_1.z.strictObject({
+        react: zod_1.z.coerce.number()
+    }),
+    params: zod_1.z.strictObject({
+        postId: validation_1.generalValidationFields.id,
+        commentId: validation_1.generalValidationFields.id,
+        replyId: validation_1.generalValidationFields.id,
     })
 };
 exports.getComment = {

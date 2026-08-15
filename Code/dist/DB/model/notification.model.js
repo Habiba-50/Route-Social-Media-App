@@ -32,18 +32,21 @@ const notificationSchema = new mongoose_1.Schema({
     },
     referenceId: {
         type: mongoose_1.Types.ObjectId,
-        required: true,
         refPath: "onModel"
     },
     onModel: {
         type: String,
-        required: true,
-        enum: ["Post", "Comment", "Like", "Reply"],
-    }
+        enum: ["Post", "Comment"],
+    },
+    isDeleted: {
+        type: Boolean,
+        default: false,
+    },
 }, {
     timestamps: true,
     collection: 'SOCIAL_MEDIA_APP_NOTIFICATIONS',
     strict: true,
     strictQuery: true,
 });
+notificationSchema.index({ createdAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 90 });
 exports.NotificationModel = mongoose_1.models.Notification || (0, mongoose_1.model)('Notification', notificationSchema);

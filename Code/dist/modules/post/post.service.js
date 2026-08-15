@@ -14,6 +14,7 @@ const post_1 = require("../../common/utils/post");
 const objectId_1 = require("../../common/utils/objectId");
 const comment_service_1 = require("../comment/comment.service");
 const realtime_1 = require("../realtime");
+const notification_1 = require("../notification");
 class PostService {
     postRepository;
     mentionService;
@@ -21,6 +22,8 @@ class PostService {
     s3;
     redisService;
     realtimeGateway;
+    notificationModuleService;
+    notificationService;
     constructor() {
         this.postRepository = new repository_1.PostRepository();
         this.mentionService = services_1.mentionService;
@@ -28,6 +31,8 @@ class PostService {
         this.s3 = services_1.s3Service;
         this.redisService = services_1.redisService;
         this.realtimeGateway = realtime_1.realtimeGateway;
+        this.notificationModuleService = new notification_1.NotificationModuleService();
+        this.notificationService = new services_1.NotificationService();
     }
     normalizePostResponse(post) {
         const data = post?.toJSON?.() ?? post;
@@ -78,6 +83,19 @@ class PostService {
             entityId: createdPost._id.toString(),
             message: `${user.username} mentioned you in a post`,
         });
+        const creatorTokens = await this.redisService.getFCMs(user._id.toString());
+        if (creatorTokens?.length) {
+            await this.notificationService.sendNotifications({
+                userId: user._id.toString(),
+                tokens: creatorTokens,
+                title: "Post created successfully",
+                body: "Your post has been created successfully",
+                entityId: createdPost._id.toString(),
+                entityType: "post",
+                senderId: user._id.toString(),
+                type: enums_1.NotificationType.POST,
+            });
+        }
         return this.normalizePostResponse(createdPost);
     }
     async updatePost({ postId }, { content, availability, removeFiles = [], files = [], tags = [], removeTags = [], }, user) {
@@ -191,38 +209,121 @@ class PostService {
         }
     }
     async reactPost({ postId }, { react }, user) {
-        const post = await this.postRepository.findOneAndUpdate({
+        const reaction = Number(react);
+        const post = await this.postRepository.findOne({
             filter: {
                 _id: (0, objectId_1.toObjectId)(postId),
                 $or: (0, post_1.getAvailability)(user),
             },
-            update: {
-                ...(Number(react) > 0
-                    ? { $addToSet: { likes: { react: Number(react), userId: user._id } } }
-                    : { $pull: { likes: { userId: user._id } } }),
-            },
             options: {
-                new: true,
                 populate: [
                     { path: "createdBy" },
-                    { path: "likes.userId" }
-                ]
-            }
+                    { path: "likes.userId" },
+                ],
+            },
         });
         if (!post) {
             throw new exceptions_1.NotFoundException("Post not found");
         }
-        const owner = post.createdBy;
-        const socketIds = await this.redisService.getSockets(owner._id);
-        console.log("Socket Id's:", socketIds);
-        if (socketIds.length && Number(react) > 0) {
-            this.realtimeGateway.getIo().to(socketIds).emit("react_post", {
-                postId: post._id,
-                react: Number(react),
-                userId: user._id
+        const existingReaction = post.likes?.find((like) => like.userId?._id.toString() === user._id.toString());
+        if (reaction === 0) {
+            if (existingReaction) {
+                await this.postRepository.updateOne({
+                    filter: {
+                        _id: post._id,
+                        "likes.userId": user._id,
+                    },
+                    update: {
+                        $pull: {
+                            likes: {
+                                userId: user._id,
+                            },
+                        },
+                    },
+                });
+            }
+        }
+        else if (!existingReaction) {
+            await this.postRepository.updateOne({
+                filter: {
+                    _id: post._id,
+                },
+                update: {
+                    $addToSet: {
+                        likes: {
+                            userId: user._id,
+                            react: reaction,
+                        },
+                    },
+                },
+            });
+            const owner = post.createdBy;
+            const ownerId = owner?._id || post.createdBy;
+            if (ownerId.toString() !== user._id.toString()) {
+                await this.notificationModuleService.createNotification({
+                    title: "New Reaction",
+                    body: `${user.username} reacted to your post`,
+                    senderId: user._id,
+                    receiverId: ownerId,
+                    type: enums_1.NotificationType.LIKE,
+                    onModel: "Post",
+                    referenceId: post._id,
+                });
+                const tokens = await this.redisService.getFCMs(ownerId);
+                console.log("tokens", tokens);
+                if (tokens?.length) {
+                    await this.notificationService.sendNotifications({
+                        userId: ownerId,
+                        tokens,
+                        title: "New Reaction",
+                        body: `${user.username} reacted to your post`,
+                        entityId: post._id.toString(),
+                        entityType: "post",
+                        senderId: user._id.toString(),
+                        type: enums_1.NotificationType.LIKE,
+                    });
+                }
+            }
+        }
+        else {
+            await this.postRepository.updateOne({
+                filter: {
+                    _id: post._id,
+                    "likes.userId": user._id,
+                },
+                update: {
+                    $set: {
+                        "likes.$.react": reaction,
+                    },
+                },
             });
         }
-        return post;
+        const updatedPost = await this.postRepository.findOne({
+            filter: {
+                _id: post._id,
+            },
+            options: {
+                populate: [
+                    { path: "createdBy" },
+                    { path: "likes.userId" },
+                ],
+            },
+        });
+        if (!updatedPost) {
+            throw new exceptions_1.NotFoundException("Post not found");
+        }
+        const owner = updatedPost.createdBy;
+        const socketIds = await this.redisService.getSockets(owner._id);
+        if (socketIds?.length) {
+            this.realtimeGateway.getIo()
+                .to(socketIds)
+                .emit("react_post", {
+                postId: updatedPost._id,
+                react: reaction,
+                userId: user._id,
+            });
+        }
+        return updatedPost;
     }
     async getPost(id, user) {
         const post = await this.postRepository.findOne({

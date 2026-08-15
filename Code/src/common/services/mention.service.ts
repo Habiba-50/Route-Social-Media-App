@@ -6,6 +6,7 @@ import { IUser } from "../interfaces";
 import { toObjectId } from "../utils/objectId";
 import { notificationService, NotificationService } from "./notification.service";
 import { redisService, RedisService } from "./redis.service";
+import { NotificationType } from "../enums";
 
 export class MentionService {
   private readonly userRepository: UserRepository;
@@ -91,26 +92,26 @@ export class MentionService {
   }): Promise<void> {
     if (!tags?.length) return;
 
-    // 1. Fetch all FCM tokens from Redis in parallel
-    const fcmResults = await Promise.all(
-      tags.map((tag) => this.redis.getFCMs(tag)),
+    // Send FCM notifications to each tagged user
+    Promise.allSettled(
+      tags.map(async (tagUserId) => {
+        const tokens = await this.redis.getFCMs(tagUserId);
+        if (tokens?.length) {
+          await this.notificationService.sendNotifications({
+            userId: tagUserId,
+            tokens,
+            title: `${user.username} mentioned you in a comment`,
+            body: message,
+            entityId,
+            entityType: "post",
+            senderId: user._id.toString(),
+            type: NotificationType.MENTION,
+          });
+        }
+      }),
+    ).catch((err) =>
+      console.error("Failed to send mention notifications", err),
     );
-
-    // 2. Flatten + deduplicate (a user may be logged-in on multiple devices)
-    const fcmTokens = new Set<string>(fcmResults.filter(Boolean).flat());
-
-    if (!fcmTokens.size) return;
-
-    // 3. Fire-and-forget — don't block the API response
-    this.notificationService
-      .sendNotifications({
-        tokens: [...fcmTokens],
-        title: `${user.username} mentioned you`,
-        body: JSON.stringify({ message, entityId }),
-      })
-      .catch((err) =>
-        console.error("Failed to send mention notifications", err),
-      );
   }
 }
 

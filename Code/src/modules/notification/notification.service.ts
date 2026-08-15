@@ -2,9 +2,11 @@ import { Types } from "mongoose";
 import { NotificationRepository } from "../../DB/repository/notification.repository";
 import { IFormattedNotification } from "./notification.formate";
 import { NotificationType } from "../../common/enums";
+import { IPaginate, IUser } from "../../common/interfaces";
+import { NotFoundException } from "../../common/exceptions";
 
 
-class notificationService {
+export class NotificationModuleService {
     private notificationRepository: NotificationRepository;
     constructor() {
         this.notificationRepository = new NotificationRepository();
@@ -24,17 +26,22 @@ class notificationService {
                 break;
 
             case "comment":
-                text = `${sender.username} commented: "${ref?.content}"`;
+                text = `${sender.username} commented on your post : "${ref?.content}"`;
                 postId = ref?.postId;
                 break;
 
+            // case "reply":
+            //     text = `${sender.username} replied: "${ref?.content}"`;
+            //     postId = ref?.commentId?.postId;
+            //     break;
+            
             case "reply":
-                text = `${sender.username} replied: "${ref?.content}"`;
-                postId = ref?.commentId?.postId;
+                text = `${sender.username} replied on your comment : "${ref?.content}"`;
+                postId = ref?.postId;
                 break;
 
             case "tag":
-                text = `${sender.username} tagged you`;
+                text = `${sender.username} tagged you on your post: "${ref?.content}"`;
                 postId = ref?._id;
                 break;
 
@@ -71,8 +78,8 @@ class notificationService {
         senderId: Types.ObjectId;
         receiverId: Types.ObjectId;
         type: NotificationType;
-        referenceId: Types.ObjectId;
-        onModel: string;
+        referenceId?: Types.ObjectId;
+        onModel?: string;
     }) {
         
         await this.notificationRepository.create({
@@ -89,51 +96,154 @@ class notificationService {
 
     }
 
-    // -------------------------- Get All Notifications -----------------------------------
+    // -------------------------- Get All Notifications with Pagination -----------------------------------
 
-    public async getAll(userId : string) {
-        const data = await this.notificationRepository.findAll({
-            filter: { receiverId: userId },
-            options : {
-                sort : { createdAt : -1 },
+      public async getNotificationList(
+        {
+          page,
+          size,
+          search,
+        }: {
+          page: number | string | undefined;
+          size: number | string | undefined;
+          search?: string | undefined;
+        },
+        user: IUser & { _id: Types.ObjectId },
+      ): Promise<IPaginate<any>> {
+        const notifications = await this.notificationRepository.paginate({
+          filter: {
+            receiverId: user._id,
+            ...(search ? { title: { $regex: search, $options: "i" }, body: { $regex: search, $options: "i" } } : {}),
+          },
+          page,
+          size,
+          options: {
+            sort: { createdAt: -1 },
+            populate: [
+              { path: "senderId" },
+            //   {
+            //     path: "comments",
+            //     populate: [
+            //       {
+            //         path: "replies",
+            //         populate: [
+            //           {
+            //             path: "replies",
+            //           },
+            //         ],
+            //       },
+            //     ],
+            //   },
+            ]
+          }
+        });
+    
+        return {
+          ...notifications,
+          docs: (notifications.docs || []).map((notification) => this.formatNotification(notification)),
+        };
+    }
+    
+    // ---------------------------- Get Notification By Id ------------------------------------------
+    public async getNotificationById(notificationId : string, user: IUser & { _id: Types.ObjectId }) {
+        const data = await this.notificationRepository.findOneAndUpdate({
+            filter: { _id: notificationId, receiverId: user._id },
+            update: { isRead: true },
+            options: {
                 populate: [
-                    {
-                        path: "senderId",
-                        select: "username profileImage"
-                    },
-                    {
-                        path: "referenceId"
-                    }
+                    { path: "senderId" },
+                    { path: "referenceId" },
                 ]
-            },
+            }
         })
-
-        const notifications = data?.map((notification) => this.formatNotification(notification));
-        return notifications;
+        if (!data) {
+            throw new NotFoundException("Notification not found");
+        }
+        return data;
     }
 
     //-------------------------- Get Unread Notifications Count -----------------------------------
 
-    public async getUnreadCount(userId : string) {
+    public async getUnreadCount(user: IUser & { _id: Types.ObjectId }) {
         const data = await this.notificationRepository.findAll({
-            filter: { receiverId: userId, isRead: false },
+            filter: { receiverId: user._id, isRead: false },
         })
 
-        if (!data) {
-            return 0;
-        }
-        return data.length;
+        return { count: data?.length || 0 };
     }
 
-    //-------------------------- Mark Notification as Read -----------------------------------
-    public async markAsRead(notificationId : string) {
-        const data = await this.notificationRepository.updateOne({
-            filter: { _id: notificationId },
-            update: { isRead: true }
+    // -------------------------- Mark All Notifications as Read -----------------------------------
+    public async markAllAsRead(user: IUser & { _id: Types.ObjectId }) {
+        await this.notificationRepository.updateMany({
+            filter: { receiverId: user._id },
+            update: { isRead: true },
         })
+
+        return { message: "All notifications marked as read" };
+    }
+
+    // -------------------------- Get Unread Notifications paginated -----------------------------------
+    public async getUnreadNotifications(
+        user: IUser & { _id: Types.ObjectId },
+        { page, size }: { page: number | string | undefined; size: number | string | undefined },
+    ) {
+        const notifications = await this.notificationRepository.paginate({
+            filter: { receiverId: user._id, isRead: false },
+            page,
+            size,
+            options: {
+                sort: { createdAt: -1 },
+                populate: [
+                    { path: "senderId" },
+                ]
+            }
+        });
+        return {
+             ...notifications,
+            docs: (notifications.docs || []).map((notification) => this.formatNotification(notification)),
+        };
+    }
+
+    // -------------------------- Delete Notification -----------------------------------
+    public async deleteNotification(notificationId: string, user: IUser & { _id: Types.ObjectId }) {
+        const data = await this.notificationRepository.findOneAndUpdate({
+            filter: { _id: notificationId, receiverId: user._id, isDeleted: false },
+            update: { isDeleted: true },
+            options: {
+                populate: [
+                    { path: "senderId" },
+                ]
+            }
+        })
+        if (!data) {
+            throw new NotFoundException("Notification not found");
+        }
         return data;
     }
 
+    // -------------------------- Delete All Notifications -----------------------------------
+    public async deleteAllNotifications(user: IUser & { _id: Types.ObjectId }) {
+        const data = await this.notificationRepository.findAll({
+            filter: { receiverId: user._id , isDeleted: false},
+            options: {
+                populate: [
+                    { path: "senderId" },
+                ]
+            }
+        })
+        
+        for (const notification of data as any) {
+            await this.notificationRepository.findOneAndUpdate({
+                filter: { _id: notification._id },
+                update: { isDeleted: true },
+            })
+        }
+        return { message: "All notifications deleted" };
+    }
+
+    
+   
+
 }
 
-export default new notificationService();
+export const notificationModuleService = new NotificationModuleService();

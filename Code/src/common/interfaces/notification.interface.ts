@@ -9,5 +9,6 @@ export interface INotification {
     isRead:boolean,
     type: string,
     referenceId?: Types.ObjectId,
-    onModel: string,
+    onModel?: string,
+    isDeleted?:boolean
 }

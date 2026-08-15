@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createComment, deleteComment, reactComment, replyOnComment } from "./comment.validation";
+import { createComment, deleteComment, reactComment, reactReply, replyOnComment } from "./comment.validation";
 
 export type CreateCommentBodyDto = z.infer<typeof createComment.body>;
 export type CreateCommentParamsDto = z.infer<typeof createComment.params>;
@@ -14,3 +14,6 @@ export type DeleteCommentParamsDto = z.infer<typeof deleteComment.params>;
 
 export type ReactCommentQueryDto = z.infer<typeof reactComment.query>;
 export type ReactCommentParamsDto = z.infer<typeof reactComment.params>;
+
+export type ReactReplyParamsDto = z.infer<typeof reactReply.params>;
+export type ReactReplyQueryDto = z.infer<typeof reactComment.query>;

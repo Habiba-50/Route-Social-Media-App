@@ -192,27 +192,27 @@ export class RedisService {
 
   // ------------------------ FCM (Notification) ------------------------
 
-  FCM_key(userId : string) {
-  return `user:FCM:${userId}`;
+  FCM_key(userId : Types.ObjectId | string) {
+  return `user:FCM:${userId.toString()}`;
 }
 
-  public async addFCM(userId: string, FCMToken: string) {
+  public async addFCM(userId: Types.ObjectId | string, FCMToken: string) {
   return await this.client.sAdd(this.FCM_key(userId), FCMToken);
 }
 
-  public async removeFCM(userId: string, FCMToken: string) {
+  public async removeFCM(userId: Types.ObjectId | string, FCMToken: string) {
   return await this.client.sRem(this.FCM_key(userId), FCMToken);
 }
 
-  public async getFCMs(userId: string) {
+  public async getFCMs(userId: Types.ObjectId | string) {
   return await this.client.sMembers(this.FCM_key(userId));
 }
 
-  public async hasFCMs(userId: string) {
+  public async hasFCMs(userId: Types.ObjectId | string) {
   return await this.client.sCard(this.FCM_key(userId));
 }
 
-  public async removeFCMUser(userId: string) {
+  public async removeFCMUser(userId: Types.ObjectId | string) {
   return await this.client.del(this.FCM_key(userId));
 }
 

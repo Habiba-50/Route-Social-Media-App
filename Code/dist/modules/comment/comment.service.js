@@ -7,16 +7,23 @@ const exceptions_1 = require("../../common/exceptions");
 const post_1 = require("../../common/utils/post");
 const objectId_1 = require("../../common/utils/objectId");
 const enums_1 = require("../../common/enums");
+const notification_1 = require("../notification");
 class CommentService {
     postRepository;
     commentRepository;
     mentionService;
     s3;
+    notificationService;
+    redisService;
+    notificationModuleService;
     constructor() {
         this.postRepository = new repository_1.PostRepository();
         this.commentRepository = new repository_1.CommentRepository();
         this.mentionService = services_1.mentionService;
         this.s3 = services_1.s3Service;
+        this.notificationService = services_1.notificationService;
+        this.redisService = services_1.redisService;
+        this.notificationModuleService = new notification_1.NotificationModuleService();
     }
     async createComment({ postId }, { tags, content, files }, user) {
         const post = await this.postRepository.findOne({
@@ -61,6 +68,30 @@ class CommentService {
             message: `${user.username} mentioned you in a comment`,
         })
             .catch((err) => console.error("Mention notification failed:", err));
+        if (user._id.toString() !== post.createdBy.toString()) {
+            const userTokens = await this.redisService.getFCMs(post.createdBy.toString());
+            this.notificationService.sendNotifications({
+                userId: post.createdBy.toString(),
+                tokens: userTokens,
+                title: `${user.username} commented on your post`,
+                body: content,
+                entityId: createdComment._id.toString(),
+                entityType: "post",
+                senderId: user._id.toString(),
+                type: enums_1.NotificationType.COMMENT,
+            })
+                .catch((err) => console.error("Comment notification failed:", err));
+        }
+        await this.notificationModuleService.createNotification({
+            title: `${user.username} commented on your post`,
+            body: content,
+            senderId: (0, objectId_1.toObjectId)(user._id.toString()),
+            receiverId: (0, objectId_1.toObjectId)(post.createdBy.toString()),
+            type: enums_1.NotificationType.COMMENT,
+            referenceId: (0, objectId_1.toObjectId)(createdComment._id.toString()),
+            onModel: "post",
+        })
+            .catch((err) => console.error("Comment notification failed:", err));
         return createdComment;
     }
     async updateComment({ postId, commentId }, { content, files = [], tags = [], removeTags = [], removeFiles = [] }, user) {
@@ -240,6 +271,29 @@ class CommentService {
             message: `${user.username} mentioned you in a comment`,
         })
             .catch((err) => console.error("Mention notification failed:", err));
+        const userTokens = await this.redisService.getFCMs(comment.createdBy.toString());
+        if (userTokens?.length) {
+            this.notificationService.sendNotifications({
+                userId: comment.createdBy.toString(),
+                tokens: userTokens,
+                title: "New reply on your comment",
+                body: `${user.username} replied to your comment`,
+                entityId: comment._id.toString(),
+                entityType: "Comment",
+                senderId: user._id.toString(),
+                type: String(enums_1.NotificationType.COMMENT),
+            });
+        }
+        await this.notificationModuleService.createNotification({
+            title: "New reply on your comment",
+            body: `${user.username} replied to your comment`,
+            senderId: (0, objectId_1.toObjectId)(user._id.toString()),
+            receiverId: (0, objectId_1.toObjectId)(comment.createdBy.toString()),
+            type: enums_1.NotificationType.COMMENT,
+            referenceId: reply._id,
+            onModel: "comment",
+        })
+            .catch((err) => console.error("Comment notification failed:", err));
         return reply;
     }
     async deleteComment({ postId, commentId }, user) {
@@ -316,7 +370,77 @@ class CommentService {
         if (!comment) {
             throw new exceptions_1.NotFoundException("Comment not found");
         }
+        if (comment.createdBy.toString() !== user._id.toString()) {
+            const tokens = await this.redisService.getFCMs(comment.createdBy.toString());
+            console.log("tokens", tokens);
+            if (tokens?.length) {
+                await this.notificationService.sendNotifications({
+                    userId: comment.createdBy.toString(),
+                    tokens,
+                    title: "New Reaction on your comment",
+                    body: `${user.username} reacted to your comment`,
+                    entityId: comment._id.toString(),
+                    entityType: "comment",
+                    senderId: user._id.toString(),
+                    type: enums_1.NotificationType.LIKE,
+                });
+            }
+            await this.notificationModuleService.createNotification({
+                title: "New Reaction on your comment",
+                body: `${user.username} reacted to your comment`,
+                senderId: user._id,
+                receiverId: (0, objectId_1.toObjectId)(comment.createdBy.toString()),
+                type: enums_1.NotificationType.LIKE,
+                onModel: "Comment",
+                referenceId: comment._id,
+            });
+        }
         return comment.toJSON();
+    }
+    async reactReply({ postId, commentId, replyId }, { react }, user) {
+        const reply = await this.commentRepository.findOneAndUpdate({
+            filter: {
+                _id: (0, objectId_1.toObjectId)(replyId),
+                postId: (0, objectId_1.toObjectId)(postId),
+                commentId: (0, objectId_1.toObjectId)(commentId),
+                $or: (0, post_1.getAvailability)(user),
+            },
+            update: {
+                ...(Number(react) > 0
+                    ? { $addToSet: { likes: { react: enums_1.ReactEnum[react], userId: user._id } } }
+                    : { $pull: { likes: { userId: user._id } } }),
+            },
+            options: { new: true },
+        });
+        if (!reply) {
+            throw new exceptions_1.NotFoundException("Reply not found");
+        }
+        if (reply.createdBy.toString() !== user._id.toString()) {
+            const tokens = await this.redisService.getFCMs(reply.createdBy.toString());
+            console.log("tokens", tokens);
+            if (tokens?.length) {
+                await this.notificationService.sendNotifications({
+                    userId: reply.createdBy.toString(),
+                    tokens,
+                    title: "New Reaction on your reply",
+                    body: `${user.username} reacted to your reply`,
+                    entityId: reply._id.toString(),
+                    entityType: "reply",
+                    senderId: user._id.toString(),
+                    type: enums_1.NotificationType.LIKE,
+                });
+            }
+            await this.notificationModuleService.createNotification({
+                title: "New Reaction on your reply",
+                body: `${user.username} reacted to your reply`,
+                senderId: user._id,
+                receiverId: (0, objectId_1.toObjectId)(reply.createdBy.toString()),
+                type: enums_1.NotificationType.LIKE,
+                onModel: "Comment",
+                referenceId: reply._id,
+            });
+        }
+        return reply.toJSON();
     }
     async getComments({ commentId }) {
         const comment = await this.commentRepository.findOne({

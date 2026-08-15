@@ -34,14 +34,19 @@ const notificationSchema = new Schema<INotification>(
 
         referenceId : {
             type: Types.ObjectId,
-            required: true,
+            // required: true,
             refPath: "onModel"
         },
+
         onModel : {
             type: String,
-            required: true,
-            enum: ["Post", "Comment", "Like", "Reply"],
-        }
+            // required: true,
+            enum: ["Post", "Comment"],
+        },
+        isDeleted : {
+            type: Boolean,
+            default: false,
+        },
         
     },
     {
@@ -51,5 +56,11 @@ const notificationSchema = new Schema<INotification>(
         strictQuery: true,
     }
 )
+
+// TTL index for auto-delete notifications after 90 days
+notificationSchema.index(
+    { createdAt: 1 },
+    { expireAfterSeconds: 60 * 60 * 24 * 90 }
+);
 
 export const NotificationModel = models.Notification || model<INotification>('Notification', notificationSchema)

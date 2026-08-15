@@ -13,7 +13,7 @@ import {
 import * as validators from "./comment.validation";
 
 import { commentService } from "./comment.service";
-import { CreateCommentParamsDto, DeleteCommentParamsDto, ReactCommentParamsDto, ReactCommentQueryDto, ReplyOnCommentParamsDto, UpdateCommentBodyDto, UpdateCommentParamsDto } from "./comment.dto";
+import { CreateCommentParamsDto, DeleteCommentParamsDto, ReactCommentParamsDto, ReactCommentQueryDto, ReactReplyParamsDto, ReactReplyQueryDto, ReplyOnCommentParamsDto, UpdateCommentBodyDto, UpdateCommentParamsDto } from "./comment.dto";
 
 const router = Router({ mergeParams: true });
 
@@ -33,7 +33,7 @@ router.post(
     next: NextFunction,
   ): Promise<Response> => {
     const data = await commentService.createComment(
-      req.params as CreateCommentParamsDto,
+      req.params as unknown as CreateCommentParamsDto,
       {
         ...req.body,
         files: req.files as Express.Multer.File[],
@@ -175,6 +175,23 @@ router.patch(
         );       
          return successResponse({ res, statusCode: 200, data });
     }
+)
+
+// ----------------------------------------------------------------
+
+// React Reply
+router.patch(
+  '/:commentId/reply/:replyId/react',
+  authentication(),
+  validation(validators.reactReply),
+  async (req: Request, res: Response, next: NextFunction): Promise<Response> => {
+    const data = await commentService.reactReply(
+      req.params as unknown as ReactReplyParamsDto,
+      req.query as unknown as ReactReplyQueryDto,
+      req.user
+    );
+    return successResponse({ res, statusCode: 200, data });
+  }
 )
 
 //-----------------------------------------------------------------

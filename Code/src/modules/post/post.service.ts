@@ -4,6 +4,7 @@ import { PostRepository } from "../../DB/repository";
 import {
   mentionService,
   MentionService,
+  NotificationService,
   redisService,
   RedisService,
   s3Service,
@@ -23,11 +24,12 @@ import {
 } from "../../common/exceptions";
 import { randomUUID } from "node:crypto";
 import { IPaginate, IPost, IUser } from "../../common/interfaces";
-import { RoleEnum } from "../../common/enums";
+import { NotificationType, RoleEnum } from "../../common/enums";
 import { getAvailability } from "../../common/utils/post";
 import { toObjectId } from "../../common/utils/objectId";
 import { CommentService } from "../comment/comment.service";
 import { realtimeGateway, RealtimeGatway } from "../realtime";
+import { NotificationModuleService } from "../notification";
 
 export class PostService {
   private readonly postRepository: PostRepository;
@@ -37,6 +39,8 @@ export class PostService {
   private readonly s3: S3Service;
   private readonly redisService: RedisService;
   private readonly realtimeGateway: RealtimeGatway
+  private readonly notificationModuleService: NotificationModuleService
+  private readonly notificationService: NotificationService
 
   constructor() {
     this.postRepository = new PostRepository();
@@ -46,6 +50,8 @@ export class PostService {
     this.s3 = s3Service;
     this.redisService = redisService;
     this.realtimeGateway = realtimeGateway;
+    this.notificationModuleService = new NotificationModuleService()
+    this.notificationService = new NotificationService()
   }
 
   private normalizePostResponse(post: any) {
@@ -120,193 +126,210 @@ export class PostService {
       message: `${user.username} mentioned you in a post`,
     });
 
+    // send Notification to user that post created
+    
+    const creatorTokens = await this.redisService.getFCMs(user._id.toString());
+    if (creatorTokens?.length) {
+      await this.notificationService.sendNotifications({
+        userId: user._id.toString(),
+        tokens: creatorTokens,
+        title: "Post created successfully",
+        body: "Your post has been created successfully",
+        entityId: createdPost._id.toString(),
+        entityType: "post",
+        senderId: user._id.toString(),
+        type: NotificationType.POST,
+      });
+    }
+    
+
     return this.normalizePostResponse(createdPost);
   }
 
   // ------------------------------- Update Post -------------------------------
 
   public async updatePost(
-  { postId }: UpdatePostParamsDto,
-  {
-    content,
-    availability,
-    removeFiles = [],
-    files = [],
-    tags = [],
-    removeTags = [],
-  }: UpdatePostBodyDto,
-  user: HydratedDocument<IUser>,
+    { postId }: UpdatePostParamsDto,
+    {
+      content,
+      availability,
+      removeFiles = [],
+      files = [],
+      tags = [],
+      removeTags = [],
+    }: UpdatePostBodyDto,
+    user: HydratedDocument<IUser>,
   ): Promise<IPost> {
-    
+
     //1- Get the post for validation and to get the S3 folder path
-  const post = await this.postRepository.findOne({
-    filter: {
-      _id: postId,
-      createdBy: user._id,
-      deletedAt: { $exists: false },
-    },
-  });
-
-  if (!post) {
-    throw new NotFoundException("Post not found");
-    }
-    
-
-  // 2- Handle S3 assets
-
-  const currentFiles = post.files || [];
-
-  const filesToDelete = currentFiles.filter((file) =>
-    removeFiles.includes(file),
-    );
-    
-    
-  // 3 - Handle tags - Clean and validate incoming tag IDs
-
-  const normalizedTags = [
-    ...new Set((tags || []).map((tag) => tag.trim()).filter(Boolean)),
-  ];
-
-  const normalizedRemoveTags = [
-    ...new Set(
-      (removeTags || []).map((tag) => tag.trim()).filter(Boolean),
-    ),
-  ];
-
-  await this.mentionService.validateUserIds(normalizedTags, "tags");
-  await this.mentionService.validateMentionedUsers(user._id, normalizedTags);
-  await this.mentionService.validateUserIds(normalizedRemoveTags, "removeTags");
-
-  const tagsToAdd = normalizedTags.map((tag) => toObjectId(tag));
-
-  const tagsToRemove = normalizedRemoveTags.map((tag) =>
-    toObjectId(tag),
-  );
-
-  
-  // 4- Check if the post has content or attachments
-  const expectedFilesCount =
-      currentFiles.length -
-    filesToDelete.length +
-    files.length;
-
-  if (!content && !post.content && expectedFilesCount === 0) {
-    throw new conflictException(
-      "Post must contain content or attachments",
-    );
-  }
-
-    
-  //5 - Upload new files first
-  let uploadedFiles: string[] = [];
-
-  try {
-    if (files.length) {
-      uploadedFiles = await this.s3.uploadAssets({
-        files: files as Express.Multer.File[],
-          path: `post/${post.folderId}`,
-        });
-      }
-
-    
-  //6- Update the post in the database
-    const updatedPost = await this.postRepository.findOneAndUpdate({
+    const post = await this.postRepository.findOne({
       filter: {
         _id: postId,
         createdBy: user._id,
         deletedAt: { $exists: false },
       },
-      update: [
-        {
-          $set: {
-            content:
-              content !== undefined ? content : "$content",
-
-            availability:
-              availability !== undefined
-                ? Number(availability)
-                : "$availability",
-
-            updatedBy: user._id,
-
-            files: {
-              $setUnion: [
-                {
-                  $setDifference: ["$files", removeFiles],
-                },
-                uploadedFiles,
-              ],
-            },
-
-            tags: {
-              $setUnion: [
-                {
-                  $setDifference: ["$tags", tagsToRemove],
-                },
-                tagsToAdd,
-              ],
-            },
-          },
-        },
-      ],
-      options: {
-        new: true,
-      },
     });
 
-    if (!updatedPost) {
-      throw new BadRequestException(
-        "Post wasn't updated successfully",
+    if (!post) {
+      throw new NotFoundException("Post not found");
+    }
+
+
+    // 2- Handle S3 assets
+
+    const currentFiles = post.files || [];
+
+    const filesToDelete = currentFiles.filter((file) =>
+      removeFiles.includes(file),
+    );
+
+
+    // 3 - Handle tags - Clean and validate incoming tag IDs
+
+    const normalizedTags = [
+      ...new Set((tags || []).map((tag) => tag.trim()).filter(Boolean)),
+    ];
+
+    const normalizedRemoveTags = [
+      ...new Set(
+        (removeTags || []).map((tag) => tag.trim()).filter(Boolean),
+      ),
+    ];
+
+    await this.mentionService.validateUserIds(normalizedTags, "tags");
+    await this.mentionService.validateMentionedUsers(user._id, normalizedTags);
+    await this.mentionService.validateUserIds(normalizedRemoveTags, "removeTags");
+
+    const tagsToAdd = normalizedTags.map((tag) => toObjectId(tag));
+
+    const tagsToRemove = normalizedRemoveTags.map((tag) =>
+      toObjectId(tag),
+    );
+
+
+    // 4- Check if the post has content or attachments
+    const expectedFilesCount =
+      currentFiles.length -
+      filesToDelete.length +
+      files.length;
+
+    if (!content && !post.content && expectedFilesCount === 0) {
+      throw new conflictException(
+        "Post must contain content or attachments",
       );
     }
 
-  //7 - Delete old files only after successful DB update
-    if (filesToDelete.length) {
-      await this.s3.deleteAssets({
-        Keys: filesToDelete.map((file) => ({
-          Key: file,
-        })),
+
+    //5 - Upload new files first
+    let uploadedFiles: string[] = [];
+
+    try {
+      if (files.length) {
+        uploadedFiles = await this.s3.uploadAssets({
+          files: files as Express.Multer.File[],
+          path: `post/${post.folderId}`,
+        });
+      }
+
+
+      //6- Update the post in the database
+      const updatedPost = await this.postRepository.findOneAndUpdate({
+        filter: {
+          _id: postId,
+          createdBy: user._id,
+          deletedAt: { $exists: false },
+        },
+        update: [
+          {
+            $set: {
+              content:
+                content !== undefined ? content : "$content",
+
+              availability:
+                availability !== undefined
+                  ? Number(availability)
+                  : "$availability",
+
+              updatedBy: user._id,
+
+              files: {
+                $setUnion: [
+                  {
+                    $setDifference: ["$files", removeFiles],
+                  },
+                  uploadedFiles,
+                ],
+              },
+
+              tags: {
+                $setUnion: [
+                  {
+                    $setDifference: ["$tags", tagsToRemove],
+                  },
+                  tagsToAdd,
+                ],
+              },
+            },
+          },
+        ],
+        options: {
+          new: true,
+        },
       });
-    }
 
-  //8 - Send notification to tagged users if there are any new tags
-    const notifyTaggedUsers = normalizedTags.filter(
-      (tag) =>
-        !post.tags?.some(
-          (existingTag) =>
-            existingTag.toString() === tag,
-        ),
-    );
+      if (!updatedPost) {
+        throw new BadRequestException(
+          "Post wasn't updated successfully",
+        );
+      }
 
-    // sendMentionNotifications is fire-and-forget — it handles its own errors internally
-    this.mentionService.sendMentionNotifications({
-      user,
-      tags: notifyTaggedUsers,
-      entityId: updatedPost._id.toString(),
-      message: `${user.username} mentioned you in a post update`,
-    });
-
-    return this.normalizePostResponse(updatedPost) as IPost;
-  } catch (error) {
-    // Rollback newly uploaded files
-    if (uploadedFiles.length) {
-      try {
+      //7 - Delete old files only after successful DB update
+      if (filesToDelete.length) {
         await this.s3.deleteAssets({
-          Keys: uploadedFiles.map((file) => ({
+          Keys: filesToDelete.map((file) => ({
             Key: file,
           })),
         });
-      } catch (rollbackError) {
-        console.error(
-          "Failed to rollback uploaded files",
-          rollbackError,
-        );
       }
-    }
 
-    throw error;
+      //8 - Send notification to tagged users if there are any new tags
+      const notifyTaggedUsers = normalizedTags.filter(
+        (tag) =>
+          !post.tags?.some(
+            (existingTag) =>
+              existingTag.toString() === tag,
+          ),
+      );
+
+      // sendMentionNotifications is fire-and-forget — it handles its own errors internally
+      this.mentionService.sendMentionNotifications({
+        user,
+        tags: notifyTaggedUsers,
+        entityId: updatedPost._id.toString(),
+        message: `${user.username} mentioned you in a post update`,
+      });
+
+      return this.normalizePostResponse(updatedPost) as IPost;
+    } catch (error) {
+      // Rollback newly uploaded files
+      if (uploadedFiles.length) {
+        try {
+          await this.s3.deleteAssets({
+            Keys: uploadedFiles.map((file) => ({
+              Key: file,
+            })),
+          });
+        } catch (rollbackError) {
+          console.error(
+            "Failed to rollback uploaded files",
+            rollbackError,
+          );
+        }
+      }
+
+      throw error;
+    }
   }
-}
 
   // ------------------------------- React Post -------------------------------
 
@@ -315,48 +338,227 @@ export class PostService {
     { react }: ReactPostQueryDto,
     user: IUser & { _id: Types.ObjectId },
   ) {
-      // console.log(postId , react , user)
+    const reaction = Number(react);
 
-    const post = await this.postRepository.findOneAndUpdate({
+    // 1. Get the post first
+    const post = await this.postRepository.findOne({
       filter: {
         _id: toObjectId(postId),
         $or: getAvailability(user as HydratedDocument<IUser>),
       },
-      update: {
-        ...(Number(react) > 0
-          ? { $addToSet: { likes: { react: Number(react), userId: user._id } } }
-          : { $pull: { likes: { userId: user._id } } }),
-      },
       options: {
-        new: true,
         populate: [
           { path: "createdBy" },
-          { path: "likes.userId"}
-        ]
-      }
+          { path: "likes.userId" },
+        ],
+      },
     });
-
-    // console.log(post);
 
     if (!post) {
       throw new NotFoundException("Post not found");
     }
 
+    const existingReaction = post.likes?.find(
+      (like) =>
+        like.userId?._id.toString() === user._id.toString()
+    );
 
-    const owner = post.createdBy as HydratedDocument<IUser>;
-    const socketIds = await this.redisService.getSockets(owner._id as Types.ObjectId)
-    console.log("Socket Id's:" , socketIds)
-    if(socketIds.length && Number(react) > 0 ){
-      this.realtimeGateway.getIo().to(socketIds).emit("react_post", {
-        postId:post._id,
-        react:Number(react),
-        userId:user._id
-      })
+    // console.log("existingReaction", existingReaction)
+
+
+    // 2. Remove reaction
+    if (reaction === 0) {
+
+      if (existingReaction) {
+        await this.postRepository.updateOne({
+          filter: {
+            _id: post._id,
+            "likes.userId": user._id,
+          },
+          update: {
+            $pull: {
+              likes: {
+                userId: user._id,
+              },
+            },
+          },
+        });
+      }
     }
 
+    // 3. New reaction
+    else if (!existingReaction) {
 
-    return post;
+      await this.postRepository.updateOne({
+        filter: {
+          _id: post._id,
+        },
+        update: {
+          $addToSet: {
+            likes: {
+              userId: user._id,
+              react: reaction,
+            },
+          },
+        },
+      });
+
+      const owner = post.createdBy as HydratedDocument<IUser>;
+      const ownerId = owner?._id || (post.createdBy as unknown as Types.ObjectId);
+
+      // Don't notify the owner if he reacts to his own post
+      if (ownerId.toString() !== user._id.toString()) {
+
+        // ---------------- DB Notification ----------------
+
+        await this.notificationModuleService.createNotification({
+          title: "New Reaction",
+          body: `${user.username} reacted to your post`,
+          senderId: user._id,
+          receiverId: ownerId as Types.ObjectId,
+          type: NotificationType.LIKE,
+          onModel: "Post",
+          referenceId: post._id,
+        });
+
+        // ---------------- FCM Notification ----------------
+
+        const tokens = await this.redisService.getFCMs(
+          ownerId as Types.ObjectId
+        );
+
+        console.log("tokens", tokens)
+
+        if (tokens?.length) {
+          await this.notificationService.sendNotifications({
+            userId: ownerId as Types.ObjectId,
+            tokens,
+            title: "New Reaction",
+            body: `${user.username} reacted to your post`,
+            entityId: post._id.toString(),
+            entityType: "post",
+            senderId: user._id.toString(),
+            type: NotificationType.LIKE,
+          });
+        }
+
+
+      }
+    }
+
+    // 4. Change existing reaction
+    else {
+
+      await this.postRepository.updateOne({
+        filter: {
+          _id: post._id,
+          "likes.userId": user._id,
+        },
+        update: {
+          $set: {
+            "likes.$.react": reaction,
+          },
+        },
+      });
+    }
+
+    // 5. Get updated post
+    const updatedPost = await this.postRepository.findOne({
+      filter: {
+        _id: post._id,
+      },
+      options: {
+
+        populate: [
+          { path: "createdBy" },
+          { path: "likes.userId" },
+        ],
+      },
+    });
+
+    if (!updatedPost) {
+      throw new NotFoundException("Post not found");
+    }
+
+    // 6. Socket.IO → always notify the post owner
+    const owner = updatedPost.createdBy as HydratedDocument<IUser>;
+
+    const socketIds = await this.redisService.getSockets(
+      owner._id as Types.ObjectId
+    );
+
+    if (socketIds?.length) {
+      this.realtimeGateway.getIo()
+        .to(socketIds)
+        .emit("react_post", {
+          postId: updatedPost._id,
+          react: reaction,
+          userId: user._id,
+        });
+    }
+
+    return updatedPost;
   }
+
+  // public async reactPost(
+  //   { postId }: ReactPostParamsDto,
+  //   { react }: ReactPostQueryDto,
+  //   user: IUser & { _id: Types.ObjectId },
+  // ) {
+  //     // console.log(postId , react , user)
+
+  //   const post = await this.postRepository.findOneAndUpdate({
+  //     filter: {
+  //       _id: toObjectId(postId),
+  //       $or: getAvailability(user as HydratedDocument<IUser>),
+  //     },
+  //     update: {
+  //       ...(Number(react) > 0
+  //         ? { $addToSet: { likes: { react: Number(react), userId: user._id } } }
+  //         : { $pull: { likes: { userId: user._id } } }),
+  //     },
+  //     options: {
+  //       new: true,
+  //       populate: [
+  //         { path: "createdBy" },
+  //         { path: "likes.userId"}
+  //       ]
+  //     }
+  //   });
+
+  //   // console.log(post);
+
+  //   if (!post) {
+  //     throw new NotFoundException("Post not found");
+  //   }
+
+
+  //   const owner = post.createdBy as HydratedDocument<IUser>;
+  //   const socketIds = await this.redisService.getSockets(owner._id as Types.ObjectId)
+  //   console.log("Socket Id's:" , socketIds)
+  //   if(socketIds.length && Number(react) > 0 ){
+  //     this.realtimeGateway.getIo().to(socketIds).emit("react_post", {
+  //       postId:post._id,
+  //       react:Number(react),
+  //       userId:user._id
+  //     })
+  //   }
+
+  //   if(Number(react) > 0 && owner._id.toString() !== user._id.toString()){
+  //     const notification = await this.notificationModuleService.createNotification({
+  //       title: "New Reaction",
+  //       body: `${user.username} reacted to your post`,
+  //       senderId: user._id,
+  //       receiverId: owner._id,
+  //       type: NotificationType.LIKE,
+  //       onModel: "Post",
+  //       referenceId: post._id
+  //     });
+  //   }
+
+
+  //   return post;
+  // }
 
   // ------------------------------- Get Post -------------------------------
 
@@ -372,7 +574,7 @@ export class PostService {
             path: "comments",
             select: "content",
           },
-          {path:"likes" , select:"react userId"}
+          { path: "likes", select: "react userId" }
         ],
       },
     });
@@ -386,7 +588,7 @@ export class PostService {
   }
 
   // ------------------------- Get All Posts with pagination ----------------------
-    public async getPostList(
+  public async getPostList(
     {
       page,
       size,
@@ -410,7 +612,7 @@ export class PostService {
         populate: [
           { path: "likes.userId" },
           { path: "createdBy" },
-          {path:"tags"},
+          { path: "tags" },
           { path: "updatedBy" },
           {
             path: "comments",
@@ -495,7 +697,7 @@ export class PostService {
   // we want to delete all assets that related to this post from s3
   // Delete all comments on it with replies 
 
-  
+
   public async destroyPost(
     id: string,
     user: IUser & { _id: Types.ObjectId },
@@ -520,7 +722,7 @@ export class PostService {
 
     // 3 - Transactions (DB only - if this failed, we don't want to delete anything from S3)
     // we use Session to handel database deletion and rollback if anything goes wrong in the database operations
-    
+
     const session = await mongoose.startSession();
 
     try {

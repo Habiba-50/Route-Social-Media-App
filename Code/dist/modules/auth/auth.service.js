@@ -9,16 +9,19 @@ const email_1 = require("../../common/utils/email");
 const security_1 = require("../../common/utils/security");
 const repository_1 = require("../../DB/repository");
 const config_1 = require("../../config/config");
+const notification_1 = require("../notification");
 class AuthenticationService {
     userRepository;
     redis;
     tokenService;
     notificationService;
+    notificationServiceModule;
     constructor() {
         this.userRepository = new repository_1.UserRepository();
         this.redis = services_1.redisService;
         this.tokenService = new services_1.TokenService();
         this.notificationService = new services_1.NotificationService();
+        this.notificationServiceModule = new notification_1.NotificationModuleService();
     }
     async sendEmailOtp(email, subject = enums_1.EmailEnum.ConfirmEmail, title) {
         const isBlocked = await this.redis.get(this.redis.blockOtpKey({ email, subject }));
@@ -158,6 +161,7 @@ class AuthenticationService {
         const user = await this.userRepository.findOne({
             filter: { email, provider: enums_1.ProviderEnum.SYSTEM },
         });
+        console.log("User: ", user);
         if (!user) {
             throw new exceptions_1.NotFoundException("Fail to find matching account");
         }
@@ -170,15 +174,38 @@ class AuthenticationService {
         if (fcm) {
             await this.redis.addFCM(user._id, fcm);
             const tokens = await this.redis.getFCMs(user._id);
-            if (tokens?.length > 0) {
+            if (tokens?.length > 1) {
                 await this.notificationService.sendNotifications({
+                    userId: user._id.toString(),
                     tokens: tokens,
-                    title: "Login",
-                    body: `New login at ${new Date()}`
+                    title: `${user.username} Login`,
+                    body: `New login at ${new Date()}`,
+                    entityId: user._id.toString(),
+                    entityType: "User",
+                    senderId: user._id.toString(),
+                    type: String(enums_1.NotificationType.NEW_LOGIN)
                 });
             }
+            await this.notificationService.sendNotification({
+                userId: user._id.toString(),
+                token: fcm,
+                title: `${user.username} Login`,
+                body: `New login at ${new Date()}`,
+                entityId: user._id.toString(),
+                entityType: "User",
+                senderId: user._id.toString(),
+                type: String(enums_1.NotificationType.NEW_LOGIN),
+            });
         }
-        return await this.tokenService.createLoginCredentials({ user, issuer });
+        const credentials = await this.tokenService.createLoginCredentials({ user, issuer });
+        await this.notificationServiceModule.createNotification({
+            title: "New Login",
+            body: `New login at ${new Date()}`,
+            senderId: user._id,
+            receiverId: user._id,
+            type: enums_1.NotificationType.NEW_LOGIN,
+        });
+        return credentials;
     }
     ;
     async loginGmail(idToken, issuer) {

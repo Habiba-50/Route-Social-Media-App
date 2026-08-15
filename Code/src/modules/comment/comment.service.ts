@@ -4,27 +4,38 @@ import { CommentRepository, PostRepository } from "../../DB/repository";
 import {
   mentionService,
   MentionService,
+  notificationService,
+  NotificationService,
+  redisService,
+  RedisService,
   s3Service,
   S3Service,
 } from "../../common/services";
-import { CreateCommentParamsDto, CreateCommentBodyDto, ReplyOnCommentParamsDto, ReplyOnCommentBodyDto, UpdateCommentParamsDto, UpdateCommentBodyDto, DeleteCommentParamsDto, ReactCommentParamsDto, ReactCommentQueryDto } from "./comment.dto";
+import { CreateCommentParamsDto, CreateCommentBodyDto, ReplyOnCommentParamsDto, ReplyOnCommentBodyDto, UpdateCommentParamsDto, UpdateCommentBodyDto, DeleteCommentParamsDto, ReactCommentParamsDto, ReactCommentQueryDto, ReactReplyParamsDto, ReactReplyQueryDto } from "./comment.dto";
 import { BadRequestException, conflictException, NotFoundException } from "../../common/exceptions";
-import {  IComment, IUser } from "../../common/interfaces";
+import { IComment, IUser } from "../../common/interfaces";
 import { getAvailability } from "../../common/utils/post";
 import { toObjectId } from "../../common/utils/objectId";
-import { ReactEnum } from "../../common/enums";
+import { NotificationType, ReactEnum } from "../../common/enums";
+import { NotificationModuleService } from "../notification";
 
 export class CommentService {
   private readonly postRepository: PostRepository;
   private readonly commentRepository: CommentRepository;
   private readonly mentionService: MentionService;
   private readonly s3: S3Service;
+  private readonly notificationService: NotificationService;
+  private readonly redisService: RedisService;
+  private readonly notificationModuleService: NotificationModuleService;
 
   constructor() {
     this.postRepository = new PostRepository();
     this.commentRepository = new CommentRepository();
     this.mentionService = mentionService;
     this.s3 = s3Service;
+    this.notificationService = notificationService;
+    this.redisService = redisService;
+    this.notificationModuleService = new NotificationModuleService();
   }
 
   // ------------------------------- Create Comment ✅ -------------------------------
@@ -66,21 +77,21 @@ export class CommentService {
     }
 
     // 4 - Persist with rollback on failure
-    
-     const createdComment = await this.commentRepository.create({
-        data: {
-          content,
-          createdBy: user._id,
-          files: attachments,
-          postId,
-          tags: tagObjectIds,
-        },
-      });
-  
-      if (!createdComment && attachments.length) {
-       await this.s3.deleteAssets({ Keys: attachments.map((key) => ({ Key: key })) })
+
+    const createdComment = await this.commentRepository.create({
+      data: {
+        content,
+        createdBy: user._id,
+        files: attachments,
+        postId,
+        tags: tagObjectIds,
+      },
+    });
+
+    if (!createdComment && attachments.length) {
+      await this.s3.deleteAssets({ Keys: attachments.map((key) => ({ Key: key })) })
         .catch((err) => console.error("S3 rollback failed:", err));
-       throw new BadRequestException("Failed to create comment");
+      throw new BadRequestException("Failed to create comment");
     }
 
     // 5 - Notify tagged users (true fire-and-forget)
@@ -93,11 +104,41 @@ export class CommentService {
       })
       .catch((err) => console.error("Mention notification failed:", err));
 
+    // Notify post owner for the comment if he is not the same as the user who commented
+    if (user._id.toString() !== post.createdBy.toString()) {
+      const userTokens = await this.redisService.getFCMs(post.createdBy.toString());
+      this.notificationService.sendNotifications({
+        userId: post.createdBy.toString(),
+        tokens: userTokens,
+        title: `${user.username} commented on your post`,
+        body: content as string,
+        entityId: createdComment._id.toString(),
+        entityType: "post",
+        senderId: user._id.toString(),
+        type: NotificationType.COMMENT,
+      })
+        .catch((err) => console.error("Comment notification failed:", err));
+    }
+
+    // Save Notification in DB
+    await this.notificationModuleService.createNotification({
+      title: `${user.username} commented on your post`,
+      body: content as string,
+      senderId: toObjectId(user._id.toString()),
+      receiverId: toObjectId(post.createdBy.toString()),
+      type: NotificationType.COMMENT,
+      referenceId: toObjectId(createdComment._id.toString()),
+      onModel: "post",
+    }
+    )
+      .catch((err) => console.error("Comment notification failed:", err));
+
+
     return createdComment;
   }
 
   // ------------------------------- Update Comment ✅ ---------------------------------
-  
+
   public async updateComment(
     { postId, commentId }: UpdateCommentParamsDto,
     {
@@ -317,7 +358,7 @@ export class CommentService {
 
     if (!comment) throw new NotFoundException("Comment not found or not accessible");
 
-    if(!comment.postId) throw new BadRequestException("Post not found or not accessible");
+    if (!comment.postId) throw new BadRequestException("Post not found or not accessible");
 
     // 2 - Normalize & validate tags
     const normalizedTags = [
@@ -369,11 +410,39 @@ export class CommentService {
       })
       .catch((err) => console.error("Mention notification failed:", err));
 
+    // 6 - Send notification to the comment's creator
+    const userTokens = await this.redisService.getFCMs(comment.createdBy.toString());
+    if (userTokens?.length) {
+      this.notificationService.sendNotifications({
+        userId: comment.createdBy.toString(),
+        tokens: userTokens,
+        title: "New reply on your comment",
+        body: `${user.username} replied to your comment`,
+        entityId: comment._id.toString(),
+        entityType: "Comment",
+        senderId: user._id.toString(),
+        type: String(NotificationType.COMMENT),
+      });
+    }
+
+    // Save to DB
+
+    await this.notificationModuleService.createNotification({
+      title: "New reply on your comment",
+      body: `${user.username} replied to your comment`,
+      senderId: toObjectId(user._id.toString()),
+      receiverId: toObjectId(comment.createdBy.toString()),
+      type: NotificationType.COMMENT,
+      referenceId: reply._id,
+      onModel: "comment",
+    })
+      .catch((err) => console.error("Comment notification failed:", err));
+
     return reply;
   }
 
   // ------------------------------- Delete Comment ✅ ---------------------------------
-  
+
   public async deleteComment(
     { postId, commentId }: DeleteCommentParamsDto,
     user: HydratedDocument<IUser>,
@@ -410,7 +479,7 @@ export class CommentService {
   }
 
   // ------------------------------- Restore Comment ✅ ---------------------------------
-  
+
   public async restoreComment(
     { postId, commentId }: DeleteCommentParamsDto,
     user: HydratedDocument<IUser>,
@@ -441,16 +510,17 @@ export class CommentService {
     if (!comment) {
       throw new conflictException("Comment not found or not accessible");
     }
-    
+
   }
 
   // ------------------------------- Like Comment  ✅ ---------------------------------
-  
+
   public async reactComment(
     { postId, commentId }: ReactCommentParamsDto,
     { react }: ReactCommentQueryDto,
     user: HydratedDocument<IUser>,
   ): Promise<any> {
+    
     const comment = await this.commentRepository.findOneAndUpdate({
       filter: {
         _id: toObjectId(commentId),
@@ -465,16 +535,125 @@ export class CommentService {
       options: { new: true },
     });
 
+    
     if (!comment) {
       throw new NotFoundException("Comment not found");
+    }
+
+    if (comment.createdBy.toString() !== user._id.toString()) {
+
+      
+      // ---------------- FCM Notification ----------------
+
+      const tokens = await this.redisService.getFCMs(
+        comment.createdBy.toString()
+      );
+
+      console.log("tokens", tokens)
+
+      if (tokens?.length) {
+        await this.notificationService.sendNotifications({
+          userId: comment.createdBy.toString(),
+          tokens,
+          title: "New Reaction on your comment",
+          body: `${user.username} reacted to your comment`,
+          entityId: comment._id.toString(),
+          entityType: "comment",
+          senderId: user._id.toString(),
+          type: NotificationType.LIKE,
+        });
+      }
+
+      // ---------------- DB Notification ----------------
+
+      await this.notificationModuleService.createNotification({
+        title: "New Reaction on your comment",
+        body: `${user.username} reacted to your comment`,
+        senderId: user._id,
+        receiverId: toObjectId(comment.createdBy.toString()),
+        type: NotificationType.LIKE,
+        onModel: "Comment",
+        referenceId: comment._id,
+      });
+
+
     }
 
     return comment.toJSON();
   }
 
+  // ------------------------------- Like Reply  ✅ ---------------------------------
+
+  public async reactReply(
+    { postId, commentId, replyId }: ReactReplyParamsDto,
+    { react }: ReactReplyQueryDto,
+    user: HydratedDocument<IUser>,
+  ): Promise<any> {
+
+    const reply = await this.commentRepository.findOneAndUpdate({
+      filter: {
+        _id: toObjectId(replyId),
+        postId: toObjectId(postId),
+        commentId: toObjectId(commentId),
+        $or: getAvailability(user as HydratedDocument<IUser>),
+      },
+      update: {
+        ...(Number(react) > 0
+          ? { $addToSet: { likes: { react: ReactEnum[react], userId: user._id } } }
+          : { $pull: { likes: { userId: user._id } } }),
+      },
+      options: { new: true },
+    });
+
+
+    if (!reply) {
+      throw new NotFoundException("Reply not found");
+    }
+
+    if (reply.createdBy.toString() !== user._id.toString()) {
+
+
+      // ---------------- FCM Notification ----------------
+
+      const tokens = await this.redisService.getFCMs(
+        reply.createdBy.toString()
+      );
+
+      console.log("tokens", tokens)
+
+      if (tokens?.length) {
+        await this.notificationService.sendNotifications({
+          userId: reply.createdBy.toString(),
+          tokens,
+          title: "New Reaction on your reply",
+          body: `${user.username} reacted to your reply`,
+          entityId: reply._id.toString(),
+          entityType: "reply",
+          senderId: user._id.toString(),
+          type: NotificationType.LIKE,
+        });
+      }
+
+      // ---------------- DB Notification ----------------
+
+      await this.notificationModuleService.createNotification({
+        title: "New Reaction on your reply",
+        body: `${user.username} reacted to your reply`,
+        senderId: user._id,
+        receiverId: toObjectId(reply.createdBy.toString()),
+        type: NotificationType.LIKE,
+        onModel: "Comment",
+        referenceId: reply._id,
+      });
+
+
+    }
+
+    return reply.toJSON();
+  }
   // ------------------------------- Get Comment ✅ ---------------------------------
-  
-  public async getComments({commentId}: {commentId: string}) {
+
+  public async getComments({ commentId }: { commentId: string }) {
     const comment = await this.commentRepository.findOne({
       filter: {
         _id: toObjectId(commentId),
@@ -488,11 +667,11 @@ export class CommentService {
         ]
       }
     });
-    
+
     if (!comment) {
       throw new Error("Post not found");
     }
-    
+
     return comment;
   }
 
@@ -523,13 +702,13 @@ export class CommentService {
     if (!comment) {
       throw new conflictException("Comment not found or not accessible");
     }
-    
+
     if (comment.files?.length) {
       await this.s3.deleteAssets({
         Keys: comment.files.map((key) => ({ Key: key })),
       });
     }
-    
+
     return { message: "Comment deleted successfully" };
   }
 
@@ -539,14 +718,14 @@ export class CommentService {
     user: HydratedDocument<IUser>,
     session?: ClientSession,
   ): Promise<any> {
-     await this.commentRepository.deleteMany({
+    await this.commentRepository.deleteMany({
       filter: {
         postId: toObjectId(postId),
         createdBy: user._id,
         $or: getAvailability(user as HydratedDocument<IUser>),
       },
     });
-    
+
     return { message: "Comments deleted successfully" };
   }
 }

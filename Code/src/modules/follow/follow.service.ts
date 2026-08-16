@@ -1,0 +1,212 @@
+import mongoose, { HydratedDocument, Types } from "mongoose";
+import { UserRepository } from "../../DB/repository";
+import { FollowRepository } from "../../DB/repository/follow.repository";
+import { IFollow, IUser } from "../../common/interfaces";
+import { BadRequestException, NotFoundException } from "../../common/exceptions";
+import { notificationService, NotificationService } from "../../common/services";
+import { redisService, RedisService } from "../../common/services";
+import { NotificationType } from "../../common/enums";
+import { NotificationModuleService } from "../notification";
+import { toObjectId } from "../../common/utils/objectId";
+
+
+// Notes:
+// Use a transaction to keep the Follow relationship and user counts consistent — either all operations succeed or all are rolled back.
+// Use transactions for data consistency, not for performance; they add some overhead but are worth it when multiple related operations must succeed or fail together.
+
+
+export class FollowService {
+    private readonly userRepository: UserRepository;
+    private readonly followRepository: FollowRepository;
+    private readonly notificationService: NotificationService;
+    private readonly redisService: RedisService;
+    private readonly notificationModuleService: NotificationModuleService;
+    constructor() {
+        this.userRepository = new UserRepository();
+        this.followRepository = new FollowRepository();
+        this.notificationService = notificationService;
+        this.redisService = redisService;
+        this.notificationModuleService = new NotificationModuleService();
+    }
+
+    // Follow
+    public async follow(user: HydratedDocument<IUser> & { _id: Types.ObjectId }, followingId: string): Promise<HydratedDocument<IFollow> & { _id: Types.ObjectId }> {
+
+        if (user._id.toString() === followingId) {
+            throw new BadRequestException("You cannot follow yourself");
+        }
+
+        const followingUser = await this.userRepository.findOne({
+            filter: { _id: followingId },
+        });
+
+        if (!followingUser) {
+            throw new NotFoundException("User not found");
+        }
+
+        const session = await mongoose.startSession();
+
+        try {
+            session.startTransaction();
+
+            const follow = await this.followRepository.create({
+                data: {
+                    followerId: user._id.toString(),
+                    followingId,
+                },
+                options: { session },
+            });
+
+            if (!follow || Array.isArray(follow)) {
+                throw new BadRequestException("Failed to create follow record");
+            }
+
+            // Update User's Following and Follower Count
+            await this.userRepository.findOneAndUpdate({
+                filter: { _id: user._id.toString() },
+                update: { $inc: { followingCount: 1 } },
+                options: { session },
+            });
+
+            await this.userRepository.findOneAndUpdate({
+                filter: { _id: followingId },
+                update: { $inc: { followersCount: 1 } },
+                options: { session },
+            });
+
+            await session.commitTransaction();
+
+
+            // Store Notification in DB
+            await this.notificationModuleService.createNotification({
+                title: "New Follower",
+                body: `${user.firstName} ${user.lastName} started following you`,
+                senderId: user._id,
+                receiverId: toObjectId(followingId),
+                type: NotificationType.FOLLOW,
+                onModel: "User",
+                referenceId: user._id,
+            });
+
+
+            // send Notification
+            const followingUserTokens = await this.redisService.getFCMs(followingId);
+            if (followingUserTokens?.length) {
+                await this.notificationService.sendNotifications({
+                    userId: followingId,
+                    tokens: followingUserTokens,
+                    title: "New Follower",
+                    body: `${user.firstName} ${user.lastName} started following you`,
+                    entityId: follow._id.toString(),
+                    entityType: "follow",
+                    senderId: user._id.toString(),
+                    type: NotificationType.FOLLOW,
+                });
+            }
+
+
+            return follow;
+        } catch (error) {
+            // Only abort if transaction is still active
+            if (session.inTransaction()) {
+                await session.abortTransaction();
+            }
+            throw error;
+        } finally {
+            session.endSession();
+        }
+    }
+
+    //================================================================
+
+    // Unfollow
+
+    public async unFollow(followerId: string, followingId: string): Promise<HydratedDocument<IFollow> & { _id: Types.ObjectId }> {
+        const session = await mongoose.startSession();
+
+        try {
+            session.startTransaction();
+
+            const unFollowed = await this.followRepository.findOneAndDelete({
+                filter: {
+                    followerId,
+                    followingId,
+                },
+                options: { session, new: true },
+            });
+
+            if (!unFollowed || Array.isArray(unFollowed)) {
+                throw new BadRequestException("You already unfollowed this user");
+            }
+
+            // Update User's Following and Follower Count
+            await this.userRepository.findOneAndUpdate({
+                filter: { _id: followerId },
+                update: { $inc: { followingCount: -1 } },
+                options: { session },
+            });
+
+            await this.userRepository.findOneAndUpdate({
+                filter: { _id: followingId },
+                update: { $inc: { followersCount: -1 } },
+                options: { session },
+            });
+
+            await session.commitTransaction();
+
+            // console.log(unFollowed)
+
+            return unFollowed;
+
+        } catch (error) {
+            // Only abort if transaction is still active
+            if (session.inTransaction()) {
+                await session.abortTransaction();
+            }
+            throw error;
+
+        } finally {
+            session.endSession();
+        }
+        // return unFollowed
+    }
+
+    // ===============================================================
+
+    // Get Following Users
+    public async getFollowingUsers(followerId: string): Promise<(HydratedDocument<IFollow> & { _id: Types.ObjectId })[]> {
+        const followingUsers = await this.followRepository.findAll({
+            filter: {
+                followerId,
+            },
+            options: {
+                populate: {
+                    path: "followingId",
+                    select: "firstName lastName",
+                },
+            }
+        });
+        return followingUsers as unknown as (HydratedDocument<IFollow> & { _id: Types.ObjectId })[];
+    }
+
+    // ===============================================================
+
+    // Get Followers Users
+    public async getFollowersUsers(followingId: string): Promise<(HydratedDocument<IFollow> & { _id: Types.ObjectId })[]> {
+        const followersUsers = await this.followRepository.findAll({
+            filter: {
+                followingId,
+            },
+            options: {
+                populate: {
+                    path: "followerId",
+                    select: "firstName lastName",
+                },
+            }
+        });
+        return followersUsers as unknown as (HydratedDocument<IFollow> & { _id: Types.ObjectId })[];
+    }
+
+}
+
+export default new FollowService();

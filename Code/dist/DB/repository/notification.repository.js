@@ -7,5 +7,8 @@ class NotificationRepository extends base_repository_1.DatabaseRepository {
     constructor() {
         super(index_1.NotificationModel);
     }
+    async countDocuments(filter) {
+        return await this.model.countDocuments(filter);
+    }
 }
 exports.NotificationRepository = NotificationRepository;

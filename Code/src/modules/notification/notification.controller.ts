@@ -75,7 +75,22 @@ router.delete("/", authentication(), async (req: Request, res: Response, next: N
     return successResponse({ res, statusCode: 200, data });
 })
 
+// Restore a specific notification
+router.patch("/restore/:notificationId", authentication(), async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+    const data = await notificationModuleService.restoreNotification(
+        req.params.notificationId as string,
+        req.user as IUser & { _id: Types.ObjectId }
+    );
+    return successResponse({ res, statusCode: 200, data });
+})
 
+// Restore All Notifications
+router.patch("/restore-all", authentication(), async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+    const data = await notificationModuleService.restoreAllNotifications(
+        req.user as IUser & { _id: Types.ObjectId }
+    );
+    return successResponse({ res, statusCode: 200, data });
+})
 
 
 export default router;

@@ -24,8 +24,10 @@ export class DatabaseRepository<TRawDocument> {
 
   async create({
     data,
+    options,
   }: {
     data: AnyKeys<TRawDocument>;
+    options?: CreateOptions | undefined;
   }): Promise<HydratedDocument<TRawDocument>>;
 
   // Overload 2 - array → ترجع array
@@ -270,9 +272,9 @@ export class DatabaseRepository<TRawDocument> {
     options?: QueryOptions<TRawDocument>;
     }): Promise<HydratedDocument<TRawDocument> | null> {
     if (Array.isArray(update)) {
-       return await this.model.findOneAndUpdate(filter, update, {...options, updatePipeline:true});
+       return await this.model.findOneAndUpdate(filter, update, { new: true, ...options, updatePipeline:true });
     }
-    return await this.model.findOneAndUpdate(filter, {...update, $inc: {__v: 1}}, options);
+    return await this.model.findOneAndUpdate(filter, { ...update, $inc: { __v: 1 } }, { new: true, ...options });
   }
 
   // find one and delete

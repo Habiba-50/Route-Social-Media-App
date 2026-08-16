@@ -40,4 +40,12 @@ router.delete("/", (0, middleware_1.authentication)(), async (req, res, next) =>
     const data = await notification_service_1.notificationModuleService.deleteAllNotifications(req.user);
     return (0, response_1.successResponse)({ res, statusCode: 200, data });
 });
+router.patch("/restore/:notificationId", (0, middleware_1.authentication)(), async (req, res, next) => {
+    const data = await notification_service_1.notificationModuleService.restoreNotification(req.params.notificationId, req.user);
+    return (0, response_1.successResponse)({ res, statusCode: 200, data });
+});
+router.patch("/restore-all", (0, middleware_1.authentication)(), async (req, res, next) => {
+    const data = await notification_service_1.notificationModuleService.restoreAllNotifications(req.user);
+    return (0, response_1.successResponse)({ res, statusCode: 200, data });
+});
 exports.default = router;

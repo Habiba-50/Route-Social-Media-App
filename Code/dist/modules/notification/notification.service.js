@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.notificationModuleService = exports.NotificationModuleService = void 0;
 const notification_repository_1 = require("../../DB/repository/notification.repository");
+const enums_1 = require("../../common/enums");
 const exceptions_1 = require("../../common/exceptions");
 class NotificationModuleService {
     notificationRepository;
@@ -14,20 +15,32 @@ class NotificationModuleService {
         let text = "";
         let postId = null;
         switch (notification.type) {
-            case "like":
+            case enums_1.NotificationType.LIKE:
                 text = `${sender.username} liked your post`;
                 postId = ref?._id;
                 break;
-            case "comment":
+            case enums_1.NotificationType.COMMENT:
                 text = `${sender.username} commented on your post : "${ref?.content}"`;
                 postId = ref?.postId;
                 break;
-            case "reply":
+            case enums_1.NotificationType.REPLY:
                 text = `${sender.username} replied on your comment : "${ref?.content}"`;
                 postId = ref?.postId;
                 break;
-            case "tag":
+            case enums_1.NotificationType.TAG:
                 text = `${sender.username} tagged you on your post: "${ref?.content}"`;
+                postId = ref?._id;
+                break;
+            case enums_1.NotificationType.NEW_LOGIN:
+                text = `New login from new device`;
+                postId = null;
+                break;
+            case enums_1.NotificationType.MENTION:
+                text = `${sender.username} mentioned you in your comment: "${ref?.content}"`;
+                postId = ref?.postId;
+                break;
+            case enums_1.NotificationType.POST:
+                text = `New post uploaded successfully`;
                 postId = ref?._id;
                 break;
             default:
@@ -95,10 +108,10 @@ class NotificationModuleService {
         return data;
     }
     async getUnreadCount(user) {
-        const data = await this.notificationRepository.findAll({
+        const data = await this.notificationRepository.countDocuments({
             filter: { receiverId: user._id, isRead: false },
         });
-        return { count: data?.length || 0 };
+        return { count: data };
     }
     async markAllAsRead(user) {
         await this.notificationRepository.updateMany({
@@ -126,7 +139,7 @@ class NotificationModuleService {
     }
     async deleteNotification(notificationId, user) {
         const data = await this.notificationRepository.findOneAndUpdate({
-            filter: { _id: notificationId, receiverId: user._id, isDeleted: false },
+            filter: { _id: notificationId, receiverId: user._id, isDeleted: { $exists: false } },
             update: { isDeleted: true },
             options: {
                 populate: [
@@ -140,21 +153,33 @@ class NotificationModuleService {
         return data;
     }
     async deleteAllNotifications(user) {
-        const data = await this.notificationRepository.findAll({
+        await this.notificationRepository.updateMany({
             filter: { receiverId: user._id, isDeleted: false },
+            update: { isDeleted: true },
+        });
+        return { message: "All notifications deleted" };
+    }
+    async restoreNotification(notificationId, user) {
+        const data = await this.notificationRepository.findOneAndUpdate({
+            filter: { _id: notificationId, receiverId: user._id, isDeleted: true },
+            update: { $unset: { isDeleted: 1 } },
             options: {
                 populate: [
                     { path: "senderId" },
                 ]
             }
         });
-        for (const notification of data) {
-            await this.notificationRepository.findOneAndUpdate({
-                filter: { _id: notification._id },
-                update: { isDeleted: true },
-            });
+        if (!data) {
+            throw new exceptions_1.NotFoundException("Notification not found");
         }
-        return { message: "All notifications deleted" };
+        return data;
+    }
+    async restoreAllNotifications(user) {
+        await this.notificationRepository.updateMany({
+            filter: { receiverId: user._id, isDeleted: true },
+            update: { isDeleted: false },
+        });
+        return { message: "All notifications restored" };
     }
 }
 exports.NotificationModuleService = NotificationModuleService;

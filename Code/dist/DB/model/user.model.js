@@ -27,6 +27,8 @@ const userSchema = new mongoose_1.Schema({
     confirmEmail: { type: Date },
     deletedAt: { type: Date },
     restoredAt: { type: Date },
+    followingCount: { type: Number, default: 0 },
+    followersCount: { type: Number, default: 0 },
 }, {
     timestamps: true,
     toJSON: { virtuals: true },

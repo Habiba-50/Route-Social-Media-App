@@ -36,11 +36,10 @@ const notificationSchema = new mongoose_1.Schema({
     },
     onModel: {
         type: String,
-        enum: ["Post", "Comment"],
+        enum: ["Post", "Comment", "User"],
     },
     isDeleted: {
         type: Boolean,
-        default: false,
     },
 }, {
     timestamps: true,

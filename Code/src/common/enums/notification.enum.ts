@@ -6,5 +6,6 @@ export enum NotificationType {
     NEW_LOGIN = "NEW_LOGIN",
     MENTION = "MENTION",
     POST = "POST",
+    FOLLOW = "FOLLOW",
     
 }

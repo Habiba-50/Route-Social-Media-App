@@ -10,4 +10,5 @@ var NotificationType;
     NotificationType["NEW_LOGIN"] = "NEW_LOGIN";
     NotificationType["MENTION"] = "MENTION";
     NotificationType["POST"] = "POST";
+    NotificationType["FOLLOW"] = "FOLLOW";
 })(NotificationType || (exports.NotificationType = NotificationType = {}));

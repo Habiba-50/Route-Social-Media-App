@@ -20,3 +20,4 @@ __exportStar(require("./post"), exports);
 __exportStar(require("./notification"), exports);
 __exportStar(require("./graphql"), exports);
 __exportStar(require("./realtime"), exports);
+__exportStar(require("./follow"), exports);

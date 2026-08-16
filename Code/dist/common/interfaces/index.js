@@ -20,3 +20,4 @@ __exportStar(require("./notification.interface"), exports);
 __exportStar(require("./pagination.interface"), exports);
 __exportStar(require("./comment.interface"), exports);
 __exportStar(require("./chat.interface"), exports);
+__exportStar(require("./follow.interface"), exports);

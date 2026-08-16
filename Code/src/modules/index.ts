@@ -3,4 +3,5 @@ export * from "./user";
 export * from "./post";
 export * from "./notification";
 export * from "./graphql";
-export * from "./realtime"
+export * from "./realtime";
+export * from "./follow"

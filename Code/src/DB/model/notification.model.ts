@@ -41,11 +41,11 @@ const notificationSchema = new Schema<INotification>(
         onModel : {
             type: String,
             // required: true,
-            enum: ["Post", "Comment"],
+            enum: ["Post", "Comment", "User"],
         },
         isDeleted : {
             type: Boolean,
-            default: false,
+            // default: null,
         },
         
     },

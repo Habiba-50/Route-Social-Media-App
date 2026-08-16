@@ -30,4 +30,7 @@ export interface IUser {
     deletedAt?: Date | undefined,
     restoredAt?: Date | undefined,
 
+    followingCount?: number,
+    followersCount?: number,
+
 }

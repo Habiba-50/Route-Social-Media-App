@@ -63,9 +63,9 @@ class DatabaseRepository {
     }
     async findOneAndUpdate({ filter = {}, update, options, }) {
         if (Array.isArray(update)) {
-            return await this.model.findOneAndUpdate(filter, update, { ...options, updatePipeline: true });
+            return await this.model.findOneAndUpdate(filter, update, { new: true, ...options, updatePipeline: true });
         }
-        return await this.model.findOneAndUpdate(filter, { ...update, $inc: { __v: 1 } }, options);
+        return await this.model.findOneAndUpdate(filter, { ...update, $inc: { __v: 1 } }, { new: true, ...options });
     }
     async findOneAndDelete({ filter = {}, options, }) {
         return await this.model.findOneAndDelete(filter, options);

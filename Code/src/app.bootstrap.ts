@@ -1,5 +1,5 @@
 import express, { NextFunction } from 'express';
-import { authRouter, notificationRouter, postRouter, realtimeGateway, schema, userRouter } from './modules';
+import { authRouter, followRouter, notificationRouter, postRouter, realtimeGateway, schema, userRouter } from './modules';
 import { authentication, globalErrorHandler } from './middleware';
 import { port } from './config/config';
 import { connectDB } from './DB/connection.db';
@@ -56,6 +56,7 @@ const bootstrap = async () => {
     app.use("/user", userRouter);
     app.use("/notification", notificationRouter);
     app.use("/post", postRouter);
+    app.use("/follow", followRouter);
     
     app.get("/uploads/*path", async (req: express.Request, res: express.Response, next: NextFunction): Promise<any> => {
         const {download , filename} = req.query as { download?: string , filename?: string }

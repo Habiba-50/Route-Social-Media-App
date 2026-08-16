@@ -14,7 +14,7 @@ export class NotificationService {
         
         const serviceAccount = JSON.parse(
             readFileSync(resolve("./src/config/c45-route-74549-firebase-adminsdk-fbsvc-ca07563c99.json")).toString()
-        ) as unknown as string;
+        ) as string;
 
         this.client = admin.apps.length
             ? admin.app()

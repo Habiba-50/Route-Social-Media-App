@@ -34,6 +34,9 @@ const userSchema = new Schema<IUser>({
     deletedAt: { type: Date},
     restoredAt: { type: Date },
 
+    followingCount: { type: Number, default: 0 },
+    followersCount: { type: Number, default: 0 },
+
 
 }, {
     timestamps: true,

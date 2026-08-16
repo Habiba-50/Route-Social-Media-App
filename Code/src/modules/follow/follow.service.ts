@@ -174,8 +174,11 @@ export class FollowService {
     // ===============================================================
 
     // Get Following Users
-    public async getFollowingUsers(followerId: string): Promise<(HydratedDocument<IFollow> & { _id: Types.ObjectId })[]> {
-        const followingUsers = await this.followRepository.findAll({
+    public async getFollowingUsers(
+        followerId: string,
+        { page, size }: { page: string, size: string },
+    ): Promise<any> {
+        const followingUsers = await this.followRepository.paginate({
             filter: {
                 followerId,
             },
@@ -184,16 +187,21 @@ export class FollowService {
                     path: "followingId",
                     select: "firstName lastName",
                 },
-            }
+            },
+            size,
+            page,
         });
-        return followingUsers as unknown as (HydratedDocument<IFollow> & { _id: Types.ObjectId })[];
+        return followingUsers;
     }
 
     // ===============================================================
 
     // Get Followers Users
-    public async getFollowersUsers(followingId: string): Promise<(HydratedDocument<IFollow> & { _id: Types.ObjectId })[]> {
-        const followersUsers = await this.followRepository.findAll({
+    public async getFollowersUsers(
+        followingId: string,
+        { page, size }: { page: string, size: string },
+    ): Promise<any> {
+        const followersUsers = await this.followRepository.paginate({
             filter: {
                 followingId,
             },
@@ -202,9 +210,11 @@ export class FollowService {
                     path: "followerId",
                     select: "firstName lastName",
                 },
-            }
+            },
+            size,
+            page,
         });
-        return followersUsers as unknown as (HydratedDocument<IFollow> & { _id: Types.ObjectId })[];
+        return followersUsers
     }
 
 }

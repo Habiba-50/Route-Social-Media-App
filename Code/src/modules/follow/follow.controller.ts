@@ -27,7 +27,7 @@ router.post("/:followingId",authentication(), async (req :Request, res:Response,
 
 
 // Unfollow
-router.patch("/:followingId", authentication(), async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+router.delete("/:followingId", authentication(), async (req: Request, res: Response, next: NextFunction): Promise<any> => {
     try {
         const result = await followService.unFollow(
             req.user?._id.toString() as string,
@@ -49,10 +49,14 @@ router.patch("/:followingId", authentication(), async (req: Request, res: Respon
 router.get("/following",authentication(), async (req: Request, res: Response, next: NextFunction): Promise<any> => {
     try {
         const result = await followService.getFollowingUsers(
-            req.user?._id.toString() as string
+            req.user?._id.toString() as string,
+            {
+                page: req.query?.page as string,
+                size: req.query?.limit as string,
+            }
         )
 
-        return res.status(201).json({
+        return res.status(200).json({
             success: true,
             message: "Following users fetched successfully",
             data: result
@@ -66,10 +70,14 @@ router.get("/following",authentication(), async (req: Request, res: Response, ne
 router.get("/followers", authentication(), async (req: Request, res: Response, next: NextFunction): Promise<any> => {
     try {
         const result = await followService.getFollowersUsers(
-            req.user?._id.toString() as string
+            req.user?._id.toString() as string,
+            {
+                page: req.query?.page as string,
+                size: req.query?.limit as string,
+            }
         )
 
-        return res.status(201).json({
+        return res.status(200).json({
             success: true,
             message: "Followers users fetched successfully",
             data: result

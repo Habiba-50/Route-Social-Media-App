@@ -131,8 +131,8 @@ class FollowService {
             session.endSession();
         }
     }
-    async getFollowingUsers(followerId) {
-        const followingUsers = await this.followRepository.findAll({
+    async getFollowingUsers(followerId, { page, size }) {
+        const followingUsers = await this.followRepository.paginate({
             filter: {
                 followerId,
             },
@@ -141,12 +141,14 @@ class FollowService {
                     path: "followingId",
                     select: "firstName lastName",
                 },
-            }
+            },
+            size,
+            page,
         });
         return followingUsers;
     }
-    async getFollowersUsers(followingId) {
-        const followersUsers = await this.followRepository.findAll({
+    async getFollowersUsers(followingId, { page, size }) {
+        const followersUsers = await this.followRepository.paginate({
             filter: {
                 followingId,
             },
@@ -155,7 +157,9 @@ class FollowService {
                     path: "followerId",
                     select: "firstName lastName",
                 },
-            }
+            },
+            size,
+            page,
         });
         return followersUsers;
     }

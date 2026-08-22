@@ -21,3 +21,4 @@ __exportStar(require("./notification"), exports);
 __exportStar(require("./graphql"), exports);
 __exportStar(require("./realtime"), exports);
 __exportStar(require("./follow"), exports);
+__exportStar(require("./friendRequest"), exports);

@@ -5,3 +5,4 @@ export * from "./notification";
 export * from "./graphql";
 export * from "./realtime";
 export * from "./follow"
+export * from "./friendRequest"

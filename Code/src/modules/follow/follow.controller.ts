@@ -1,13 +1,14 @@
 import type { Request, Response, NextFunction } from "express";
 import { Router } from "express"
-import { authentication } from "../../middleware";
+import { authentication, validation } from "../../middleware";
 import followService from "./follow.service";
+import * as validators from './follow.validation'
 
 
 const router = Router()
 
 // Follow
-router.post("/:followingId",authentication(), async (req :Request, res:Response, next:NextFunction): Promise<any> => {
+router.post("/:followingId",authentication(), validation(validators.follow) ,async (req :Request, res:Response, next:NextFunction): Promise<any> => {
     try {
         const result = await followService.follow(
             req.user, 
@@ -27,7 +28,7 @@ router.post("/:followingId",authentication(), async (req :Request, res:Response,
 
 
 // Unfollow
-router.delete("/:followingId", authentication(), async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+router.delete("/:followingId", authentication(), validation(validators.unfollow), async (req: Request, res: Response, next: NextFunction): Promise<any> => {
     try {
         const result = await followService.unFollow(
             req.user?._id.toString() as string,
@@ -46,7 +47,7 @@ router.delete("/:followingId", authentication(), async (req: Request, res: Respo
 
 
 // Get following users
-router.get("/following",authentication(), async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+router.get("/following", authentication(), validation(validators.getFollowingUsers) , async (req: Request, res: Response, next: NextFunction): Promise<any> => {
     try {
         const result = await followService.getFollowingUsers(
             req.user?._id.toString() as string,
@@ -67,7 +68,7 @@ router.get("/following",authentication(), async (req: Request, res: Response, ne
 })
 
 // Get followers users
-router.get("/followers", authentication(), async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+router.get("/followers", authentication(), validation(validators.getFollowersUsers), async (req: Request, res: Response, next: NextFunction): Promise<any> => {
     try {
         const result = await followService.getFollowersUsers(
             req.user?._id.toString() as string,

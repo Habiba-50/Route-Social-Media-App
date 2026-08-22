@@ -32,5 +32,6 @@ export interface IUser {
 
     followingCount?: number,
     followersCount?: number,
+    friendsCount?: number,
 
 }

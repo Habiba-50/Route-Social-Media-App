@@ -32,12 +32,12 @@ export class FollowService {
     // Follow
     public async follow(user: HydratedDocument<IUser> & { _id: Types.ObjectId }, followingId: string): Promise<HydratedDocument<IFollow> & { _id: Types.ObjectId }> {
 
-        if (user._id.toString() === followingId) {
+        if (user?._id?.toString() === followingId) {
             throw new BadRequestException("You cannot follow yourself");
         }
 
         const followingUser = await this.userRepository.findOne({
-            filter: { _id: followingId },
+            filter: { _id: followingId, deletedAt: { $exists: false } },
         });
 
         if (!followingUser) {
@@ -45,6 +45,8 @@ export class FollowService {
         }
 
         const session = await mongoose.startSession();
+
+        let createdFollow: (HydratedDocument<IFollow> & { _id: Types.ObjectId }) | undefined;
 
         try {
             session.startTransaction();
@@ -60,6 +62,8 @@ export class FollowService {
             if (!follow || Array.isArray(follow)) {
                 throw new BadRequestException("Failed to create follow record");
             }
+
+            createdFollow = follow;
 
             // Update User's Following and Follower Count
             await this.userRepository.findOneAndUpdate({
@@ -77,35 +81,6 @@ export class FollowService {
             await session.commitTransaction();
 
 
-            // Store Notification in DB
-            await this.notificationModuleService.createNotification({
-                title: "New Follower",
-                body: `${user.firstName} ${user.lastName} started following you`,
-                senderId: user._id,
-                receiverId: toObjectId(followingId),
-                type: NotificationType.FOLLOW,
-                onModel: "User",
-                referenceId: user._id,
-            });
-
-
-            // send Notification
-            const followingUserTokens = await this.redisService.getFCMs(followingId);
-            if (followingUserTokens?.length) {
-                await this.notificationService.sendNotifications({
-                    userId: followingId,
-                    tokens: followingUserTokens,
-                    title: "New Follower",
-                    body: `${user.firstName} ${user.lastName} started following you`,
-                    entityId: follow._id.toString(),
-                    entityType: "follow",
-                    senderId: user._id.toString(),
-                    type: NotificationType.FOLLOW,
-                });
-            }
-
-
-            return follow;
         } catch (error) {
             // Only abort if transaction is still active
             if (session.inTransaction()) {
@@ -115,6 +90,46 @@ export class FollowService {
         } finally {
             session.endSession();
         }
+
+        const follow = createdFollow as HydratedDocument<IFollow> & { _id: Types.ObjectId };
+
+        // Store Notification in DB
+        try {
+            await this.notificationModuleService.createNotification({
+                title: "New Follower",
+                body: `${user.firstName} ${user.lastName} started following you`,
+                senderId: user._id,
+                receiverId: toObjectId(followingId),
+                type: NotificationType.FOLLOW,
+                onModel: "User",
+                referenceId: user._id,
+            });
+        } catch (error) {
+            console.log("Failed to create notification:", error);
+        }
+
+
+        // send Notification
+        const followingUserTokens = await this.redisService.getFCMs(followingId);
+        if (followingUserTokens?.length) {
+            try {
+            await this.notificationService.sendNotifications({
+                userId: followingId,
+                tokens: followingUserTokens,
+                title: "New Follower",
+                body: `${user.firstName} ${user.lastName} started following you`,
+                entityId: follow._id.toString(),
+                entityType: "follow",
+                senderId: user._id.toString(),
+                type: NotificationType.FOLLOW,
+            });
+            } catch (error) {
+            console.log("Failed to send notification:", error);
+            }
+        }
+
+        return follow;
+
     }
 
     //================================================================
@@ -135,7 +150,7 @@ export class FollowService {
                 options: { session, new: true },
             });
 
-            if (!unFollowed || Array.isArray(unFollowed)) {
+            if (!unFollowed ) {
                 throw new BadRequestException("You already unfollowed this user");
             }
 

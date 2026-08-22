@@ -27,16 +27,17 @@ class FollowService {
         this.notificationModuleService = new notification_1.NotificationModuleService();
     }
     async follow(user, followingId) {
-        if (user._id.toString() === followingId) {
+        if (user?._id?.toString() === followingId) {
             throw new exceptions_1.BadRequestException("You cannot follow yourself");
         }
         const followingUser = await this.userRepository.findOne({
-            filter: { _id: followingId },
+            filter: { _id: followingId, deletedAt: { $exists: false } },
         });
         if (!followingUser) {
             throw new exceptions_1.NotFoundException("User not found");
         }
         const session = await mongoose_1.default.startSession();
+        let createdFollow;
         try {
             session.startTransaction();
             const follow = await this.followRepository.create({
@@ -49,6 +50,7 @@ class FollowService {
             if (!follow || Array.isArray(follow)) {
                 throw new exceptions_1.BadRequestException("Failed to create follow record");
             }
+            createdFollow = follow;
             await this.userRepository.findOneAndUpdate({
                 filter: { _id: user._id.toString() },
                 update: { $inc: { followingCount: 1 } },
@@ -60,6 +62,18 @@ class FollowService {
                 options: { session },
             });
             await session.commitTransaction();
+        }
+        catch (error) {
+            if (session.inTransaction()) {
+                await session.abortTransaction();
+            }
+            throw error;
+        }
+        finally {
+            session.endSession();
+        }
+        const follow = createdFollow;
+        try {
             await this.notificationModuleService.createNotification({
                 title: "New Follower",
                 body: `${user.firstName} ${user.lastName} started following you`,
@@ -69,8 +83,13 @@ class FollowService {
                 onModel: "User",
                 referenceId: user._id,
             });
-            const followingUserTokens = await this.redisService.getFCMs(followingId);
-            if (followingUserTokens?.length) {
+        }
+        catch (error) {
+            console.log("Failed to create notification:", error);
+        }
+        const followingUserTokens = await this.redisService.getFCMs(followingId);
+        if (followingUserTokens?.length) {
+            try {
                 await this.notificationService.sendNotifications({
                     userId: followingId,
                     tokens: followingUserTokens,
@@ -82,17 +101,11 @@ class FollowService {
                     type: enums_1.NotificationType.FOLLOW,
                 });
             }
-            return follow;
-        }
-        catch (error) {
-            if (session.inTransaction()) {
-                await session.abortTransaction();
+            catch (error) {
+                console.log("Failed to send notification:", error);
             }
-            throw error;
         }
-        finally {
-            session.endSession();
-        }
+        return follow;
     }
     async unFollow(followerId, followingId) {
         const session = await mongoose_1.default.startSession();
@@ -105,7 +118,7 @@ class FollowService {
                 },
                 options: { session, new: true },
             });
-            if (!unFollowed || Array.isArray(unFollowed)) {
+            if (!unFollowed) {
                 throw new exceptions_1.BadRequestException("You already unfollowed this user");
             }
             await this.userRepository.findOneAndUpdate({

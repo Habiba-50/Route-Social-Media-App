@@ -1,0 +1,1 @@
+export {default as friendRequestController} from "./friendRequest.controller"

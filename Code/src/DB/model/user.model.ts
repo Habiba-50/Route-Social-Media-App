@@ -36,6 +36,7 @@ const userSchema = new Schema<IUser>({
 
     followingCount: { type: Number, default: 0 },
     followersCount: { type: Number, default: 0 },
+    friendsCount: { type: Number, default: 0 },
 
 
 }, {

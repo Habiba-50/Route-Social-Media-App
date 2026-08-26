@@ -500,6 +500,7 @@ export class FriendRequestService {
         if (!isFriendRequest) throw new NotFoundException("You are not friends with this user")
         
         if (isFriendRequest) {
+
             const session = await startSession()
 
             let updatedFriendRequest: HydratedDocument<IFriendRequest> & { _id: Types.ObjectId } | any
@@ -517,7 +518,8 @@ export class FriendRequestService {
                         deletedAt: new Date()
                     },
                     options: {
-                        new: true
+                        new: true,
+                        session
                     }
                 })
 

@@ -1,14 +1,15 @@
 import { Router } from "express";
 import { friendRequestService } from "./friendRequest.service";
-import { authentication } from "../../middleware";
+import { authentication, validation } from "../../middleware";
 import type { Request, Response, NextFunction } from "express";
+import * as validators from "./friendRequest.validation";
 
 
 const router = Router()
 
 //Send Request
 
-router.post("/:receiverId", authentication(), async (req: Request, res: Response, next: NextFunction) => {
+router.post("/:receiverId", authentication(), validation(validators.sendRequest), async (req: Request, res: Response, next: NextFunction) => {
     console.log("Hello")
     const sendRequest = await friendRequestService.sendFriendRequest(
         req.user,
@@ -27,7 +28,7 @@ router.post("/:receiverId", authentication(), async (req: Request, res: Response
 
 //Accept Request
 
-router.patch("/:requestId/accept", authentication(), async (req: Request, res: Response, next: NextFunction) => {
+router.patch("/:requestId/accept", authentication(), validation(validators.acceptRequest), async (req: Request, res: Response, next: NextFunction) => {
     const sendRequest = await friendRequestService.acceptFriendRequest(
         req.user,
         req.params?.requestId as string
@@ -43,7 +44,7 @@ router.patch("/:requestId/accept", authentication(), async (req: Request, res: R
 
 //Reject Request
 
-router.patch("/:requestId/reject", authentication(), async (req: Request, res: Response, next: NextFunction) => {
+router.patch("/:requestId/reject", authentication(), validation(validators.rejectRequest), async (req: Request, res: Response, next: NextFunction) => {
     const rejectRequest = await friendRequestService.rejectFriendRequest(
         req.user,
         req.params?.requestId as string
@@ -59,7 +60,7 @@ router.patch("/:requestId/reject", authentication(), async (req: Request, res: R
 
 //Cancel Pending Request
 
-router.patch("/:requestId/cancel", authentication(), async (req: Request, res: Response, next: NextFunction) => {
+router.patch("/:requestId/cancel", authentication(), validation(validators.cancelRequest), async (req: Request, res: Response, next: NextFunction) => {
     const cancelRequest = await friendRequestService.cancelFriendRequest(
         req.user,
         req.params?.requestId as string
@@ -76,7 +77,7 @@ router.patch("/:requestId/cancel", authentication(), async (req: Request, res: R
 //Unfriend
 
 //prevent unfriend if they are not friends (status = accepted)
-router.patch("/:requestId/unfriend", authentication(), async (req: Request, res: Response, next: NextFunction) => {
+router.patch("/:requestId/unfriend", authentication(), validation(validators.unfriend), async (req: Request, res: Response, next: NextFunction) => {
     const cancelRequest = await friendRequestService.unfriend(
         req.user,
         req.params?.requestId as string
@@ -92,7 +93,7 @@ router.patch("/:requestId/unfriend", authentication(), async (req: Request, res:
 
 // Check the  status between two users
 
-router.get("/:friendId/status", authentication(), async (req: Request, res: Response, next: NextFunction) => {
+router.get("/:friendId/status", authentication(), validation(validators.checkStatus), async (req: Request, res: Response, next: NextFunction) => {
     const status = await friendRequestService.checkStatus(
         req.user,
         req.params?.friendId as string
@@ -109,7 +110,7 @@ router.get("/:friendId/status", authentication(), async (req: Request, res: Resp
 
 //Get Friend Requests
 //sent
-router.get("/requests-sent", authentication(), async (req: Request, res: Response, next: NextFunction) => {
+router.get("/requests-sent", authentication(), validation(validators.getPendingFriendRequestsSent), async (req: Request, res: Response, next: NextFunction) => {
     const friendRequests = await friendRequestService.GetPendingFriendRequestsSent(
         req.user,
         {
@@ -128,7 +129,7 @@ router.get("/requests-sent", authentication(), async (req: Request, res: Respons
 
 //Get Incoming Friend Requests
 
-router.get("/requests-received", authentication(), async (req: Request, res: Response, next: NextFunction) => {
+router.get("/requests-received", authentication(), validation(validators.getPendingFriendRequestsReceived), async (req: Request, res: Response, next: NextFunction) => {
     const friendRequests = await friendRequestService.GetPendingFriendRequestsReceived(
         req.user,
         {
@@ -147,7 +148,7 @@ router.get("/requests-received", authentication(), async (req: Request, res: Res
 
 //Get Friends
 
-router.get("/my-friends", authentication(), async (req: Request, res: Response, next: NextFunction) => {
+router.get("/my-friends", authentication(), validation(validators.getMyFriends), async (req: Request, res: Response, next: NextFunction) => {
     const friends = await friendRequestService.getMyFriends(
         req.user,
         {

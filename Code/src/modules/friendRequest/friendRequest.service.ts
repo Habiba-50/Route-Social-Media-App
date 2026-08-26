@@ -74,7 +74,7 @@ export class FriendRequestService {
                     new: true
                 }
             })
-            return {message: "Friend request sent", updatedFriendRequest}
+            return updatedFriendRequest
         }
 
         //prevent user from sending request to someone who he is already friends with ✅
@@ -92,120 +92,108 @@ export class FriendRequestService {
         //Auto accept if I sent a request to someone who has already sent me a request ✅ 
         if (isFriends && isFriends.status === FriendRequestStatusEnum.PENDING && isFriends.receiverId.toString() === userId) {
 
-            const session = await startSession()
+            return await this.acceptFriendRequest(user, isFriends._id.toString())
 
-            let updatedFriendRequest: HydratedDocument<IFriendRequest> & { _id: Types.ObjectId } | any
+            // const session = await startSession()
 
-            try {
+            // let updatedFriendRequest: HydratedDocument<IFriendRequest> & { _id: Types.ObjectId } | any
 
-                session.startTransaction()
+            // try {
 
-                updatedFriendRequest = await this.friendRequestRepository.findOneAndUpdate({
-                    filter: {
-                        _id: isFriends._id
-                    },
-                    update: {
-                        status: FriendRequestStatusEnum.ACCEPTED,
-                        updatedAt: new Date()
-                    },
-                    options: {
-                        session
-                    }
-                })
+            //     session.startTransaction()
 
-                await this.userRepository.findOneAndUpdate({
-                    filter: {
-                        _id: toObjectId(userId)
-                    },
-                    update: {
-                        $inc: { friendsCount: 1 }
-                    },
-                    options: {
-                        session
-                    }
-                })
+            //     updatedFriendRequest = await this.friendRequestRepository.findOneAndUpdate({
+            //         filter: {
+            //             _id: isFriends._id
+            //         },
+            //         update: {
+            //             status: FriendRequestStatusEnum.ACCEPTED,
+            //             updatedAt: new Date()
+            //         },
+            //         options: {
+            //             session
+            //         }
+            //     })
 
-                await this.userRepository.findOneAndUpdate({
-                    filter: {
-                        _id: toObjectId(receiverId)
-                    },
-                    update: {
-                        $inc: { friendsCount: 1 }
-                    },
-                    options: {
-                        session
-                    }
-                })
+            //     await this.userRepository.findOneAndUpdate({
+            //         filter: {
+            //             _id: toObjectId(userId)
+            //         },
+            //         update: {
+            //             $inc: { friendsCount: 1 }
+            //         },
+            //         options: {
+            //             session
+            //         }
+            //     })
 
-                await session.commitTransaction()
+            //     await this.userRepository.findOneAndUpdate({
+            //         filter: {
+            //             _id: toObjectId(receiverId)
+            //         },
+            //         update: {
+            //             $inc: { friendsCount: 1 }
+            //         },
+            //         options: {
+            //             session
+            //         }
+            //     })
 
-                // return updatedFriendRequest;
+            //     await session.commitTransaction()
 
-            } catch (error) {
-                if (session.inTransaction()) {
-                    await session.abortTransaction()
-                }
-                throw error
-            } finally {
-                await session.endSession()
-            }
+            //     // return updatedFriendRequest;
 
-            // Sending Notifications
+            // } catch (error) {
+            //     if (session.inTransaction()) {
+            //         await session.abortTransaction()
+            //     }
+            //     throw error
+            // } finally {
+            //     await session.endSession()
+            // }
 
-            if (updatedFriendRequest) {
-                // store Notification
-                try {
-                    await this.notificationModuleService.createNotification({
-                        title: "Friend Request",
-                        body: `${user.firstName} ${user.lastName} accepted your friend request `,
-                        senderId: toObjectId(userId),
-                        receiverId: toObjectId(receiverId),
-                        type: NotificationType.FRIEND_REQUEST,
-                        onModel: "FriendRequest",
-                        referenceId: updatedFriendRequest._id,
-                    });
-                } catch (error) {
-                    console.log("Failed to create notification:", error);
-                }
+            // // Sending Notifications
+
+            // if (updatedFriendRequest) {
+            //     // store Notification
+            //     try {
+            //         await this.notificationModuleService.createNotification({
+            //             title: "Friend Request",
+            //             body: `${user.firstName} ${user.lastName} accepted your friend request `,
+            //             senderId: toObjectId(userId),
+            //             receiverId: toObjectId(receiverId),
+            //             type: NotificationType.FRIEND_REQUEST,
+            //             onModel: "FriendRequest",
+            //             referenceId: updatedFriendRequest._id,
+            //         });
+            //     } catch (error) {
+            //         console.log("Failed to create notification:", error);
+            //     }
 
 
-                // send Notification
-                const receiverUserTokens = await this.redisService.getFCMs(receiverId);
-                // console.log("tokens", receiverUserTokens)
-                if (receiverUserTokens?.length) {
-                    try {
-                        await this.notificationService.sendNotifications({
-                            userId: receiverId,
-                            tokens: receiverUserTokens,
-                            title: "Friend Request",
-                            body: `${user.firstName} ${user.lastName} accepted your friend request`,
-                            entityId: updatedFriendRequest._id.toString(),
-                            entityType: "friend_request",
-                            senderId: user._id.toString(),
-                            type: NotificationType.FRIEND_REQUEST,
-                        });
-                    } catch (error) {
-                        console.log("Failed to send notification:", error);
-                    }
-                }
+            //     // send Notification
+            //     const receiverUserTokens = await this.redisService.getFCMs(receiverId);
+            //     // console.log("tokens", receiverUserTokens)
+            //     if (receiverUserTokens?.length) {
+            //         try {
+            //             await this.notificationService.sendNotifications({
+            //                 userId: receiverId,
+            //                 tokens: receiverUserTokens,
+            //                 title: "Friend Request",
+            //                 body: `${user.firstName} ${user.lastName} accepted your friend request`,
+            //                 entityId: updatedFriendRequest._id.toString(),
+            //                 entityType: "friend_request",
+            //                 senderId: user._id.toString(),
+            //                 type: NotificationType.FRIEND_REQUEST,
+            //             });
+            //         } catch (error) {
+            //             console.log("Failed to send notification:", error);
+            //         }
+            //     }
 
-            }
-            return updatedFriendRequest;
+            // }
+            // return updatedFriendRequest;
         }
-
-        //Resend request if it was cancelled or rejected 
-        // if (isFriends?.status === FriendRequestStatusEnum.CANCELLED || isFriends?.status === FriendRequestStatusEnum.REJECTED) {
-        //     const updatedFriendRequest = await this.friendRequestRepository.findOneAndUpdate({
-        //         filter: {
-        //             _id: isFriends._id
-        //         },
-        //         update: {
-        //             status: FriendRequestStatusEnum.PENDING,
-        //             updatedAt: new Date()
-        //         }
-        //     })
-        //     return updatedFriendRequest;
-        // }
 
         // Create a new friend request document 
         const result = await this.friendRequestRepository.create({

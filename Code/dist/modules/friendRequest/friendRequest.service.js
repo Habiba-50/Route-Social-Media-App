@@ -60,7 +60,7 @@ class FriendRequestService {
                     new: true
                 }
             });
-            return { message: "Friend request sent", updatedFriendRequest };
+            return updatedFriendRequest;
         }
         if (isFriends && isFriends.status === enums_1.FriendRequestStatusEnum.ACCEPTED) {
             throw new exceptions_1.BadRequestException("You are already friends with this user");
@@ -69,90 +69,7 @@ class FriendRequestService {
             throw new exceptions_1.BadRequestException("You have already sent a friend request to this user");
         }
         if (isFriends && isFriends.status === enums_1.FriendRequestStatusEnum.PENDING && isFriends.receiverId.toString() === userId) {
-            const session = await (0, mongoose_1.startSession)();
-            let updatedFriendRequest;
-            try {
-                session.startTransaction();
-                updatedFriendRequest = await this.friendRequestRepository.findOneAndUpdate({
-                    filter: {
-                        _id: isFriends._id
-                    },
-                    update: {
-                        status: enums_1.FriendRequestStatusEnum.ACCEPTED,
-                        updatedAt: new Date()
-                    },
-                    options: {
-                        session
-                    }
-                });
-                await this.userRepository.findOneAndUpdate({
-                    filter: {
-                        _id: (0, objectId_1.toObjectId)(userId)
-                    },
-                    update: {
-                        $inc: { friendsCount: 1 }
-                    },
-                    options: {
-                        session
-                    }
-                });
-                await this.userRepository.findOneAndUpdate({
-                    filter: {
-                        _id: (0, objectId_1.toObjectId)(receiverId)
-                    },
-                    update: {
-                        $inc: { friendsCount: 1 }
-                    },
-                    options: {
-                        session
-                    }
-                });
-                await session.commitTransaction();
-            }
-            catch (error) {
-                if (session.inTransaction()) {
-                    await session.abortTransaction();
-                }
-                throw error;
-            }
-            finally {
-                await session.endSession();
-            }
-            if (updatedFriendRequest) {
-                try {
-                    await this.notificationModuleService.createNotification({
-                        title: "Friend Request",
-                        body: `${user.firstName} ${user.lastName} accepted your friend request `,
-                        senderId: (0, objectId_1.toObjectId)(userId),
-                        receiverId: (0, objectId_1.toObjectId)(receiverId),
-                        type: enums_1.NotificationType.FRIEND_REQUEST,
-                        onModel: "FriendRequest",
-                        referenceId: updatedFriendRequest._id,
-                    });
-                }
-                catch (error) {
-                    console.log("Failed to create notification:", error);
-                }
-                const receiverUserTokens = await this.redisService.getFCMs(receiverId);
-                if (receiverUserTokens?.length) {
-                    try {
-                        await this.notificationService.sendNotifications({
-                            userId: receiverId,
-                            tokens: receiverUserTokens,
-                            title: "Friend Request",
-                            body: `${user.firstName} ${user.lastName} accepted your friend request`,
-                            entityId: updatedFriendRequest._id.toString(),
-                            entityType: "friend_request",
-                            senderId: user._id.toString(),
-                            type: enums_1.NotificationType.FRIEND_REQUEST,
-                        });
-                    }
-                    catch (error) {
-                        console.log("Failed to send notification:", error);
-                    }
-                }
-            }
-            return updatedFriendRequest;
+            return await this.acceptFriendRequest(user, isFriends._id.toString());
         }
         const result = await this.friendRequestRepository.create({
             data: {
@@ -401,7 +318,8 @@ class FriendRequestService {
                         deletedAt: new Date()
                     },
                     options: {
-                        new: true
+                        new: true,
+                        session
                     }
                 });
                 await this.userRepository.findOneAndUpdate({

@@ -89,4 +89,23 @@ router.get("/followers", authentication(), validation(validators.getFollowersUse
 })
 
 
+// Check Status
+router.get("/status/:followingId", authentication(), validation(validators.follow), async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+    try {
+        const result = await followService.checkStatus(
+            req.user?._id.toString() as string,
+            req.params?.followingId?.toString() as string
+        )
+
+        return res.status(200).json({
+            success: true,
+            message: "Status fetched successfully",
+            data: result
+        })
+    } catch (error) {
+        next(error)
+    }
+})
+
+
 export default router;

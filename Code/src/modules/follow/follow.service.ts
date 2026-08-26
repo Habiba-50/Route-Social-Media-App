@@ -232,6 +232,25 @@ export class FollowService {
         return followersUsers
     }
 
+    // ===============================================================
+
+    // Check Status
+    public async checkStatus(userId: string, followingId: string): Promise<string> {
+        const isFollowing = await this.followRepository.findOne({
+            filter: {
+                followerId: userId,
+                followingId,
+            },
+        });
+
+        if (isFollowing) {
+            return "Following"
+        }
+        else{
+            return "Follow"
+        }
+    }
+
 }
 
 export default new FollowService();

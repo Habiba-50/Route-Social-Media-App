@@ -99,4 +99,17 @@ router.get("/followers", (0, middleware_1.authentication)(), (0, middleware_1.va
         next(error);
     }
 });
+router.get("/status/:followingId", (0, middleware_1.authentication)(), (0, middleware_1.validation)(validators.follow), async (req, res, next) => {
+    try {
+        const result = await follow_service_1.default.checkStatus(req.user?._id.toString(), req.params?.followingId?.toString());
+        return res.status(200).json({
+            success: true,
+            message: "Status fetched successfully",
+            data: result
+        });
+    }
+    catch (error) {
+        next(error);
+    }
+});
 exports.default = router;

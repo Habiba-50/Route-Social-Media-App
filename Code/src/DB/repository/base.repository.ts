@@ -209,7 +209,8 @@ export class DatabaseRepository<TRawDocument> {
 
     return {
       docs: docs as HydratedDocument<TRawDocument>[],
-      ...(Number(page) > 0 ? { currentPage: Number(page), pageSize: Number(size), pages: Math.ceil(count / Number(size)) } : {})    };
+      ...(Number(page) > 0 ? { currentPage: Number(page), pageSize: Number(size), pages: Math.ceil(count / Number(size)) } : {})
+    };
   }
 
  

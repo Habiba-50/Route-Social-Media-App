@@ -2,7 +2,7 @@ import { HydratedDocument, startSession, Types } from "mongoose";
 import { FriendRequestStatusEnum, NotificationType } from "../../common/enums";
 import { BadRequestException, NotFoundException } from "../../common/exceptions";
 import { FriendRequestRepository, UserRepository } from "../../DB/repository";
-import { IFriendRequest } from "../../common/interfaces";
+import { IFriendRequest, IUser } from "../../common/interfaces";
 import { toObjectId } from "../../common/utils/objectId";
 import { NotificationModuleService } from "../notification";
 import { NotificationService, redisService, RedisService } from "../../common/services";
@@ -24,9 +24,9 @@ export class FriendRequestService {
         this.redisService = redisService
     }
 
-    // --------------------------Send Request ✅✅ --------------------------------
+    // -------------------------- Send Request ✅✅ --------------------------------
 
-    public async sendFriendRequest(user: any, receiverId: string) {
+    public async sendFriendRequest(user: HydratedDocument<IUser>, receiverId: string) {
 
         const userId = user._id.toString()
         //prevent user from sending request to himself ✅
@@ -55,6 +55,27 @@ export class FriendRequestService {
                 ]
             },
         })
+
+        //Resend request if the status is cancelled / rejected / unfriend  ✅✅
+        if (isFriends?.deletedAt) {
+            const updatedFriendRequest = await this.friendRequestRepository.findOneAndUpdate({
+                filter: {
+                    _id: isFriends._id
+                },
+                update: {
+                    status: FriendRequestStatusEnum.PENDING,
+                    senderId: toObjectId(userId),
+                    receiverId: toObjectId(receiverId),
+                    $unset: {
+                        deletedAt: ""
+                    }
+                },
+                options: {
+                    new: true
+                }
+            })
+            return {message: "Friend request sent", updatedFriendRequest}
+        }
 
         //prevent user from sending request to someone who he is already friends with ✅
         if (isFriends && isFriends.status === FriendRequestStatusEnum.ACCEPTED) {
@@ -173,18 +194,18 @@ export class FriendRequestService {
         }
 
         //Resend request if it was cancelled or rejected 
-        if (isFriends?.status === FriendRequestStatusEnum.CANCELLED || isFriends?.status === FriendRequestStatusEnum.REJECTED) {
-            const updatedFriendRequest = await this.friendRequestRepository.findOneAndUpdate({
-                filter: {
-                    _id: isFriends._id
-                },
-                update: {
-                    status: FriendRequestStatusEnum.PENDING,
-                    updatedAt: new Date()
-                }
-            })
-            return updatedFriendRequest;
-        }
+        // if (isFriends?.status === FriendRequestStatusEnum.CANCELLED || isFriends?.status === FriendRequestStatusEnum.REJECTED) {
+        //     const updatedFriendRequest = await this.friendRequestRepository.findOneAndUpdate({
+        //         filter: {
+        //             _id: isFriends._id
+        //         },
+        //         update: {
+        //             status: FriendRequestStatusEnum.PENDING,
+        //             updatedAt: new Date()
+        //         }
+        //     })
+        //     return updatedFriendRequest;
+        // }
 
         // Create a new friend request document 
         const result = await this.friendRequestRepository.create({
@@ -240,9 +261,9 @@ export class FriendRequestService {
     }
 
 
-    // --------------------------Accept Request ✅✅ --------------------------------
+    // -------------------------- Accept Request ✅✅ --------------------------------
 
-    public async acceptFriendRequest(user: any, friendRequestId: string) {
+    public async acceptFriendRequest(user: HydratedDocument<IUser>, friendRequestId: string) {
 
         const userId = user._id.toString()
 
@@ -361,9 +382,9 @@ export class FriendRequestService {
 
     }
 
-    // --------------------------Reject Request ✅✅ --------------------------------
+    // -------------------------- Reject Request ✅✅ --------------------------------
 
-    public async rejectFriendRequest(user: any, friendRequestId: string) {
+    public async rejectFriendRequest(user: HydratedDocument<IUser>, friendRequestId: string) {
 
         const userId = user._id.toString()
 
@@ -383,7 +404,7 @@ export class FriendRequestService {
             },
             update: {
                 status: FriendRequestStatusEnum.REJECTED,
-                updatedAt: new Date()
+                deletedAt: new Date()
             }
         })
 
@@ -429,9 +450,9 @@ export class FriendRequestService {
         return updatedFriendRequest;
     }
 
-    // -----------------------Cancel Pending Request ✅✅ ------------------------------------
+    // ----------------------- Cancel Pending Request ✅✅ ------------------------------------
 
-    public async cancelFriendRequest(user: any, friendRequestId: string) {
+    public async cancelFriendRequest(user: HydratedDocument<IUser>, friendRequestId: string) {
 
         const userId = user._id.toString()
 
@@ -457,21 +478,202 @@ export class FriendRequestService {
         return updatedFriendRequest;
     }
 
-    // -----------------------------------------------------------------------------
-
-    //Unfriend
+    // ------------------------------- Unfriend ✅✅----------------------------------------------
 
     //prevent unfriend if they are not friends (status = accepted)
 
+    public async unfriend(user: HydratedDocument<IUser>, friendRequestId: string) {
 
-    // -----------------------------------------------------------------------------
+        const userId = user._id.toString()
 
-    //Get Friend Requests
+        const isFriendRequest = await this.friendRequestRepository.findOne({
+            filter: {
+                _id: toObjectId(friendRequestId),
+                status: FriendRequestStatusEnum.ACCEPTED,
+                $or: [
+                    { senderId: toObjectId(userId) },
+                    { receiverId: toObjectId(userId) }
+                ]
+            },
+        })
 
+        if (!isFriendRequest) throw new NotFoundException("You are not friends with this user")
+        
+        if (isFriendRequest) {
+            const session = await startSession()
 
-    // -----------------------------------------------------------------------------
+            let updatedFriendRequest: HydratedDocument<IFriendRequest> & { _id: Types.ObjectId } | any
 
-    //Get Friends
+            try {
+
+                session.startTransaction()
+
+                updatedFriendRequest = await this.friendRequestRepository.findOneAndUpdate({
+                    filter: {
+                        _id: isFriendRequest._id
+                    },
+                    update: {
+                        status: FriendRequestStatusEnum.UNFRIENDED,
+                        deletedAt: new Date()
+                    },
+                    options: {
+                        new: true
+                    }
+                })
+
+                
+
+                await this.userRepository.findOneAndUpdate({
+                    filter: {
+                        _id: isFriendRequest?.senderId
+                    },
+                    update: {
+                        $inc: { friendsCount: -1 }
+                    },
+                    options: {
+                        session
+                    }
+                })
+
+                await this.userRepository.findOneAndUpdate({
+                    filter: {
+                        _id: isFriendRequest?.receiverId
+                    },
+                    update: {
+                        $inc: { friendsCount: -1 }
+                    },
+                    options: {
+                        session
+                    }
+                })
+
+                await session.commitTransaction()
+
+                return updatedFriendRequest;
+
+            } catch (error) {
+                if (session.inTransaction()) {
+                    await session.abortTransaction()
+                }
+                throw error
+            } finally {
+                await session.endSession()
+            }           
+        }
+    }
+
+    //------------------------------- Check Status ✅✅ ------------------------------
+
+    public async checkStatus(user: HydratedDocument<IUser>, friendId: string): Promise<string> {
+        const userId = user._id.toString()
+
+        const isFriendRequest = await this.friendRequestRepository.findOne({
+            filter: {
+                $or: [
+                    { senderId: toObjectId(userId), receiverId: toObjectId(friendId) },
+                    { senderId: toObjectId(friendId), receiverId: toObjectId(userId) }
+                ]
+            },
+        })
+
+        // if (!isFriendRequest) throw new NotFoundException("Friend request not found")
+        
+        if(isFriendRequest?.deletedAt){
+            return "Send Friend Request" 
+        }
+
+        if (isFriendRequest?.status === FriendRequestStatusEnum.PENDING) {
+            if (isFriendRequest?.senderId.toString() === userId) {
+                return "Requested"
+            }
+            return "Accept Request"
+        }
+
+        if(isFriendRequest?.status === FriendRequestStatusEnum.ACCEPTED){
+            return "Friends"
+        }
+
+        return "Send Friend Request"
+    }
+
+    // ---------------------------- Get Friend Requests I Sent ✅✅ -----------------------------
+    
+    public async GetPendingFriendRequestsSent(user: HydratedDocument<IUser>, {page, size}: {page?: number, size?: number}){
+        const userId = user._id.toString()
+        // console.log(page, size)
+        const pendingRequests = await this.friendRequestRepository.paginate({
+            filter: {
+                senderId: toObjectId(userId),
+                status: FriendRequestStatusEnum.PENDING
+            },
+            page,
+            size,
+            options: {
+                populate: [
+                    {
+                        path: "receiverId",
+                        select: "firstName lastName profilePicture email"
+                    }
+                ],
+            }
+        })
+        // console.log(pendingRequests)
+        return pendingRequests
+    }
+
+    // ---------------------------- Get Friend Requests I Received ✅✅-----------------------------
+
+    public async GetPendingFriendRequestsReceived(user: HydratedDocument<IUser>, { page, size }: { page?: number, size?: number }) {
+        const userId = user._id.toString()
+        const pendingRequests = await this.friendRequestRepository.paginate({
+            filter: {
+                receiverId: toObjectId(userId),
+                status: FriendRequestStatusEnum.PENDING
+            },
+            page,
+            size,
+            options: {
+                populate: [
+                    {
+                        path: "senderId",
+                        select: "firstName lastName profilePicture email"
+                    }
+                ],
+            }
+        })
+        return pendingRequests
+    }
+
+    // -------------------------------- Get Friends ✅✅ -------------------------------
+
+    public async getMyFriends(user: HydratedDocument<IUser>, { page, size }: { page?: number, size?: number }) {
+        const userId = user._id.toString()
+
+        const friends = await this.friendRequestRepository.paginate({
+            filter: {
+                status: FriendRequestStatusEnum.ACCEPTED,
+                $or: [
+                    { senderId: toObjectId(userId) },
+                    { receiverId: toObjectId(userId) }
+                ]
+            },
+            page,
+            size,
+            options: {
+                populate: [
+                    {
+                        path: "senderId",
+                        select: "firstName lastName profilePicture email"
+                    },
+                    {
+                        path: "receiverId",
+                        select: "firstName lastName profilePicture email"
+                    }
+                ],
+            }
+        })
+        return friends
+    }
 
 
 

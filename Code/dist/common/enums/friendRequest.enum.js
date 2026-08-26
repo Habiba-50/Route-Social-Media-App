@@ -7,4 +7,5 @@ var FriendRequestStatusEnum;
     FriendRequestStatusEnum["ACCEPTED"] = "ACCEPTED";
     FriendRequestStatusEnum["REJECTED"] = "REJECTED";
     FriendRequestStatusEnum["CANCELLED"] = "CANCELLED";
+    FriendRequestStatusEnum["UNFRIENDED"] = "UNFRIENDED";
 })(FriendRequestStatusEnum || (exports.FriendRequestStatusEnum = FriendRequestStatusEnum = {}));

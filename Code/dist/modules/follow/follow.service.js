@@ -176,6 +176,20 @@ class FollowService {
         });
         return followersUsers;
     }
+    async checkStatus(userId, followingId) {
+        const isFollowing = await this.followRepository.findOne({
+            filter: {
+                followerId: userId,
+                followingId,
+            },
+        });
+        if (isFollowing) {
+            return "Following";
+        }
+        else {
+            return "Follow";
+        }
+    }
 }
 exports.FollowService = FollowService;
 exports.default = new FollowService();

@@ -43,6 +43,25 @@ class FriendRequestService {
                 ]
             },
         });
+        if (isFriends?.deletedAt) {
+            const updatedFriendRequest = await this.friendRequestRepository.findOneAndUpdate({
+                filter: {
+                    _id: isFriends._id
+                },
+                update: {
+                    status: enums_1.FriendRequestStatusEnum.PENDING,
+                    senderId: (0, objectId_1.toObjectId)(userId),
+                    receiverId: (0, objectId_1.toObjectId)(receiverId),
+                    $unset: {
+                        deletedAt: ""
+                    }
+                },
+                options: {
+                    new: true
+                }
+            });
+            return { message: "Friend request sent", updatedFriendRequest };
+        }
         if (isFriends && isFriends.status === enums_1.FriendRequestStatusEnum.ACCEPTED) {
             throw new exceptions_1.BadRequestException("You are already friends with this user");
         }
@@ -133,18 +152,6 @@ class FriendRequestService {
                     }
                 }
             }
-            return updatedFriendRequest;
-        }
-        if (isFriends?.status === enums_1.FriendRequestStatusEnum.CANCELLED || isFriends?.status === enums_1.FriendRequestStatusEnum.REJECTED) {
-            const updatedFriendRequest = await this.friendRequestRepository.findOneAndUpdate({
-                filter: {
-                    _id: isFriends._id
-                },
-                update: {
-                    status: enums_1.FriendRequestStatusEnum.PENDING,
-                    updatedAt: new Date()
-                }
-            });
             return updatedFriendRequest;
         }
         const result = await this.friendRequestRepository.create({
@@ -305,7 +312,7 @@ class FriendRequestService {
             },
             update: {
                 status: enums_1.FriendRequestStatusEnum.REJECTED,
-                updatedAt: new Date()
+                deletedAt: new Date()
             }
         });
         if (updatedFriendRequest) {
@@ -365,6 +372,164 @@ class FriendRequestService {
             }
         });
         return updatedFriendRequest;
+    }
+    async unfriend(user, friendRequestId) {
+        const userId = user._id.toString();
+        const isFriendRequest = await this.friendRequestRepository.findOne({
+            filter: {
+                _id: (0, objectId_1.toObjectId)(friendRequestId),
+                status: enums_1.FriendRequestStatusEnum.ACCEPTED,
+                $or: [
+                    { senderId: (0, objectId_1.toObjectId)(userId) },
+                    { receiverId: (0, objectId_1.toObjectId)(userId) }
+                ]
+            },
+        });
+        if (!isFriendRequest)
+            throw new exceptions_1.NotFoundException("You are not friends with this user");
+        if (isFriendRequest) {
+            const session = await (0, mongoose_1.startSession)();
+            let updatedFriendRequest;
+            try {
+                session.startTransaction();
+                updatedFriendRequest = await this.friendRequestRepository.findOneAndUpdate({
+                    filter: {
+                        _id: isFriendRequest._id
+                    },
+                    update: {
+                        status: enums_1.FriendRequestStatusEnum.UNFRIENDED,
+                        deletedAt: new Date()
+                    },
+                    options: {
+                        new: true
+                    }
+                });
+                await this.userRepository.findOneAndUpdate({
+                    filter: {
+                        _id: isFriendRequest?.senderId
+                    },
+                    update: {
+                        $inc: { friendsCount: -1 }
+                    },
+                    options: {
+                        session
+                    }
+                });
+                await this.userRepository.findOneAndUpdate({
+                    filter: {
+                        _id: isFriendRequest?.receiverId
+                    },
+                    update: {
+                        $inc: { friendsCount: -1 }
+                    },
+                    options: {
+                        session
+                    }
+                });
+                await session.commitTransaction();
+                return updatedFriendRequest;
+            }
+            catch (error) {
+                if (session.inTransaction()) {
+                    await session.abortTransaction();
+                }
+                throw error;
+            }
+            finally {
+                await session.endSession();
+            }
+        }
+    }
+    async checkStatus(user, friendId) {
+        const userId = user._id.toString();
+        const isFriendRequest = await this.friendRequestRepository.findOne({
+            filter: {
+                $or: [
+                    { senderId: (0, objectId_1.toObjectId)(userId), receiverId: (0, objectId_1.toObjectId)(friendId) },
+                    { senderId: (0, objectId_1.toObjectId)(friendId), receiverId: (0, objectId_1.toObjectId)(userId) }
+                ]
+            },
+        });
+        if (isFriendRequest?.deletedAt) {
+            return "Send Friend Request";
+        }
+        if (isFriendRequest?.status === enums_1.FriendRequestStatusEnum.PENDING) {
+            if (isFriendRequest?.senderId.toString() === userId) {
+                return "Requested";
+            }
+            return "Accept Request";
+        }
+        if (isFriendRequest?.status === enums_1.FriendRequestStatusEnum.ACCEPTED) {
+            return "Friends";
+        }
+        return "Send Friend Request";
+    }
+    async GetPendingFriendRequestsSent(user, { page, size }) {
+        const userId = user._id.toString();
+        const pendingRequests = await this.friendRequestRepository.paginate({
+            filter: {
+                senderId: (0, objectId_1.toObjectId)(userId),
+                status: enums_1.FriendRequestStatusEnum.PENDING
+            },
+            page,
+            size,
+            options: {
+                populate: [
+                    {
+                        path: "receiverId",
+                        select: "firstName lastName profilePicture email"
+                    }
+                ],
+            }
+        });
+        return pendingRequests;
+    }
+    async GetPendingFriendRequestsReceived(user, { page, size }) {
+        const userId = user._id.toString();
+        const pendingRequests = await this.friendRequestRepository.paginate({
+            filter: {
+                receiverId: (0, objectId_1.toObjectId)(userId),
+                status: enums_1.FriendRequestStatusEnum.PENDING
+            },
+            page,
+            size,
+            options: {
+                populate: [
+                    {
+                        path: "senderId",
+                        select: "firstName lastName profilePicture email"
+                    }
+                ],
+            }
+        });
+        return pendingRequests;
+    }
+    async getMyFriends(user, { page, size }) {
+        const userId = user._id.toString();
+        const friends = await this.friendRequestRepository.paginate({
+            filter: {
+                status: enums_1.FriendRequestStatusEnum.ACCEPTED,
+                $or: [
+                    { senderId: (0, objectId_1.toObjectId)(userId) },
+                    { receiverId: (0, objectId_1.toObjectId)(userId) }
+                ]
+            },
+            page,
+            size,
+            options: {
+                populate: [
+                    {
+                        path: "senderId",
+                        select: "firstName lastName profilePicture email"
+                    },
+                    {
+                        path: "receiverId",
+                        select: "firstName lastName profilePicture email"
+                    }
+                ],
+            }
+        });
+        return friends;
     }
 }
 exports.FriendRequestService = FriendRequestService;

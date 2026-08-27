@@ -634,19 +634,25 @@ export class FriendRequestService {
         return pendingRequests
     }
 
-    // -------------------------------- Get Friends ✅✅ -------------------------------
+    // =======================================================================
+
+    private buildAcceptedFriendsFilter(userId: string) {
+        return {
+            status: FriendRequestStatusEnum.ACCEPTED,
+            $or: [
+                { senderId: toObjectId(userId) },
+                { receiverId: toObjectId(userId) }
+            ]
+        };
+    }
+
+    // -------------------------------- Get Friends Paginated ✅✅ -------------------------------
 
     public async getMyFriends(user: HydratedDocument<IUser>, { page, size }: { page?: number, size?: number }) {
         const userId = user._id.toString()
 
         const friends = await this.friendRequestRepository.paginate({
-            filter: {
-                status: FriendRequestStatusEnum.ACCEPTED,
-                $or: [
-                    { senderId: toObjectId(userId) },
-                    { receiverId: toObjectId(userId) }
-                ]
-            },
+            filter: this.buildAcceptedFriendsFilter(userId),
             page,
             size,
             options: {
@@ -665,7 +671,25 @@ export class FriendRequestService {
         return friends
     }
 
+    // ------------------------ Get Friends Ids for Availability ✅✅ -------------------------------
 
+    public async getAcceptedFriendIds(userId: Types.ObjectId | string): Promise<Types.ObjectId[]> {
+        const friendships = await this.friendRequestRepository.findAll({
+            filter: this.buildAcceptedFriendsFilter(userId.toString()),
+            projection: { senderId: 1, receiverId: 1 },
+        });
+        return (friendships || []).map((f) =>
+            f.senderId.toString() === userId.toString() ? f.receiverId : f.senderId
+        );
+    }
+
+    // Why this projection?
+    // We only need the IDs to build an array.
+    // If the query retrieves all fields (especially if there are heavy fields like long texts or arrays),
+    // it will be extra data transferred from the database to the server without any use
+    // ---unnecessary consumption of network and memory---
+    // Since this method will be called frequently (every time someone retrieves a list of posts),
+    // this difference becomes more important than it seems.
 
 }
 

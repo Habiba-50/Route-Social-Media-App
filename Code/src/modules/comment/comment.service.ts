@@ -49,7 +49,7 @@ export class CommentService {
     const post = await this.postRepository.findOne({
       filter: {
         _id: postId,
-        $or: getAvailability(user as HydratedDocument<IUser>),
+        $or: await getAvailability(user as HydratedDocument<IUser>),
       },
     });
 
@@ -163,7 +163,7 @@ export class CommentService {
           {
             path: "postId",
             match: {
-              $or: getAvailability(user as HydratedDocument<IUser>),
+              $or: await getAvailability(user as HydratedDocument<IUser>),
             }
           }
         ]
@@ -349,7 +349,7 @@ export class CommentService {
           {
             path: "postId",
             match: {
-              $or: getAvailability(user as HydratedDocument<IUser>),
+              $or: await getAvailability(user as HydratedDocument<IUser>),
             }
           }
         ],
@@ -466,7 +466,7 @@ export class CommentService {
           {
             path: "postId",
             match: {
-              $or: getAvailability(user as HydratedDocument<IUser>),
+              $or: await getAvailability(user as HydratedDocument<IUser>),
             }
           }
         ]
@@ -500,7 +500,7 @@ export class CommentService {
           {
             path: "postId",
             match: {
-              $or: getAvailability(user as HydratedDocument<IUser>),
+              $or: await getAvailability(user as HydratedDocument<IUser>),
             }
           }
         ]
@@ -525,7 +525,7 @@ export class CommentService {
       filter: {
         _id: toObjectId(commentId),
         postId: toObjectId(postId),
-        $or: getAvailability(user as HydratedDocument<IUser>),
+        $or: await getAvailability(user as HydratedDocument<IUser>),
       },
       update: {
         ...(Number(react) > 0
@@ -595,7 +595,7 @@ export class CommentService {
         _id: toObjectId(replyId),
         postId: toObjectId(postId),
         commentId: toObjectId(commentId),
-        $or: getAvailability(user as HydratedDocument<IUser>),
+        $or: await getAvailability(user as HydratedDocument<IUser>),
       },
       update: {
         ...(Number(react) > 0
@@ -692,7 +692,7 @@ export class CommentService {
           {
             path: "postId",
             match: {
-              $or: getAvailability(user as HydratedDocument<IUser>),
+              $or: await getAvailability(user as HydratedDocument<IUser>),
             }
           }
         ]
@@ -722,7 +722,7 @@ export class CommentService {
       filter: {
         postId: toObjectId(postId),
         createdBy: user._id,
-        $or: getAvailability(user as HydratedDocument<IUser>),
+        $or: await getAvailability(user as HydratedDocument<IUser>),
       },
     });
 

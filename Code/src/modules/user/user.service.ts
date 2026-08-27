@@ -35,11 +35,11 @@ export class UserService {
     // Populate friends 
     const profile = await this.userRepository.findOne({
       filter: { _id: user._id },
-      options: {
-        populate: [
-          { path: "friends", model: "User" },
-        ]
-      }
+      // options: {
+      //   populate: [
+      //     { path: "friends", model: "User" },
+      //   ]
+      // }
     })
 
     const groups = await this.chatRepository.findAll({ 

@@ -1,15 +1,16 @@
 import { Types } from "mongoose";
 
-import { UserRepository } from "../../DB/repository";
+import { FriendRequestRepository, UserRepository } from "../../DB/repository";
 import { BadRequestException, NotFoundException } from "../exceptions";
 import { IUser } from "../interfaces";
 import { toObjectId } from "../utils/objectId";
 import { notificationService, NotificationService } from "./notification.service";
 import { redisService, RedisService } from "./redis.service";
-import { NotificationType } from "../enums";
+import { FriendRequestStatusEnum, NotificationType } from "../enums";
 
 export class MentionService {
   private readonly userRepository: UserRepository;
+  private readonly friendRequestRepository: FriendRequestRepository
   private readonly redis: RedisService;
   private readonly notificationService: NotificationService;
 
@@ -17,6 +18,7 @@ export class MentionService {
     this.userRepository = new UserRepository();
     this.redis = redisService;
     this.notificationService = notificationService;
+    this.friendRequestRepository = new FriendRequestRepository();
   }
 
   /**
@@ -49,6 +51,8 @@ export class MentionService {
     }
   }
 
+  // ===================================================================
+
   /**
    * Validates that every tagged user is actually a friend of the requesting user.
    */
@@ -58,19 +62,44 @@ export class MentionService {
   ): Promise<void> {
     if (!ids.length) return;
 
-    const tagObjectIds = ids.map((id) => toObjectId(id));
+    const tagObjectIds = [...new Set(ids)].map((id) => toObjectId(id));
 
-    const isFriendAndExist = await this.userRepository.countDocuments({
-      _id: userId,
-      friends: { $all: tagObjectIds },
+    if (!tagObjectIds.length) return;
+
+    const friendRequests = await this.friendRequestRepository.findAll({
+      filter: {
+        status: FriendRequestStatusEnum.ACCEPTED,
+        deletedAt: { $exists: false },
+
+        $or: [
+          {
+            senderId: userId,
+            receiverId: { $in: tagObjectIds },
+          },
+          {
+            receiverId: userId,
+            senderId: { $in: tagObjectIds },
+          },
+        ],
+      },
     });
 
-    if (isFriendAndExist === 0) {
+    const friendIds = friendRequests?.map((friend) =>
+      friend.senderId.toString() === userId.toString()
+        ? friend.receiverId.toString()
+        : friend.senderId.toString()
+    );
+
+    if (friendIds?.length !== tagObjectIds.length) {
       throw new BadRequestException(
         "One or more tagged users are not in your friends list",
       );
     }
+
+    
   }
+  
+  // ===================================================================
 
   /**
    * Sends FCM push notifications to all tagged users.

@@ -344,7 +344,7 @@ export class PostService {
     const post = await this.postRepository.findOne({
       filter: {
         _id: toObjectId(postId),
-        $or: getAvailability(user as HydratedDocument<IUser>),
+        $or: await getAvailability(user as HydratedDocument<IUser>),
       },
       options: {
         populate: [
@@ -602,7 +602,7 @@ export class PostService {
   ): Promise<IPaginate<IPost>> {
     const posts = await this.postRepository.paginate({
       filter: {
-        $or: getAvailability(user as HydratedDocument<IUser>),
+        $or: await getAvailability(user as HydratedDocument<IUser>),
         ...(search ? { content: { $regex: search, $options: "i" } } : {}),
         // exceptedFor: { $in: [user._id] }
       },

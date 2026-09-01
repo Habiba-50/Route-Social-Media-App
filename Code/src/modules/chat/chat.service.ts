@@ -7,7 +7,7 @@ import { ChatEnum } from "../../common/enums";
 import { UserRepository } from "../../DB/repository/user.repository";
 import { s3Service } from "../../common/services"; 
 import { randomUUID } from "node:crypto";
-import { FriendRequestService } from "../friendRequest";
+import { friendRequestService, FriendRequestService } from "../friendRequest";
 
 export class ChatService {
     private chatRepository: ChatRepository
@@ -18,7 +18,7 @@ export class ChatService {
         this.chatRepository = new ChatRepository()
         this.userRepository = new UserRepository()
         this.s3Service = s3Service
-        this.friendRequestService = new FriendRequestService()
+        this.friendRequestService = friendRequestService
     }
 
     // --------------------------- Get Chat -----------------------------------

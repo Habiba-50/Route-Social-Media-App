@@ -9,12 +9,14 @@ const redis_service_1 = require("./redis.service");
 const enums_1 = require("../enums");
 class MentionService {
     userRepository;
+    friendRequestRepository;
     redis;
     notificationService;
     constructor() {
         this.userRepository = new repository_1.UserRepository();
         this.redis = redis_service_1.redisService;
         this.notificationService = notification_service_1.notificationService;
+        this.friendRequestRepository = new repository_1.FriendRequestRepository();
     }
     async validateUserIds(ids, fieldName = "tags") {
         if (!ids.length)
@@ -38,12 +40,29 @@ class MentionService {
     async validateMentionedUsers(userId, ids) {
         if (!ids.length)
             return;
-        const tagObjectIds = ids.map((id) => (0, objectId_1.toObjectId)(id));
-        const isFriendAndExist = await this.userRepository.countDocuments({
-            _id: userId,
-            friends: { $all: tagObjectIds },
+        const tagObjectIds = [...new Set(ids)].map((id) => (0, objectId_1.toObjectId)(id));
+        if (!tagObjectIds.length)
+            return;
+        const friendRequests = await this.friendRequestRepository.findAll({
+            filter: {
+                status: enums_1.FriendRequestStatusEnum.ACCEPTED,
+                deletedAt: { $exists: false },
+                $or: [
+                    {
+                        senderId: userId,
+                        receiverId: { $in: tagObjectIds },
+                    },
+                    {
+                        receiverId: userId,
+                        senderId: { $in: tagObjectIds },
+                    },
+                ],
+            },
         });
-        if (isFriendAndExist === 0) {
+        const friendIds = friendRequests?.map((friend) => friend.senderId.toString() === userId.toString()
+            ? friend.receiverId.toString()
+            : friend.senderId.toString());
+        if (friendIds?.length !== tagObjectIds.length) {
             throw new exceptions_1.BadRequestException("One or more tagged users are not in your friends list");
         }
     }

@@ -213,7 +213,7 @@ class PostService {
         const post = await this.postRepository.findOne({
             filter: {
                 _id: (0, objectId_1.toObjectId)(postId),
-                $or: (0, post_1.getAvailability)(user),
+                $or: await (0, post_1.getAvailability)(user),
             },
             options: {
                 populate: [
@@ -350,7 +350,7 @@ class PostService {
     async getPostList({ page, size, search, }, user) {
         const posts = await this.postRepository.paginate({
             filter: {
-                $or: (0, post_1.getAvailability)(user),
+                $or: await (0, post_1.getAvailability)(user),
                 ...(search ? { content: { $regex: search, $options: "i" } } : {}),
             },
             page,

@@ -422,16 +422,19 @@ class FriendRequestService {
         });
         return pendingRequests;
     }
+    buildAcceptedFriendsFilter(userId) {
+        return {
+            status: enums_1.FriendRequestStatusEnum.ACCEPTED,
+            $or: [
+                { senderId: (0, objectId_1.toObjectId)(userId) },
+                { receiverId: (0, objectId_1.toObjectId)(userId) }
+            ]
+        };
+    }
     async getMyFriends(user, { page, size }) {
         const userId = user._id.toString();
         const friends = await this.friendRequestRepository.paginate({
-            filter: {
-                status: enums_1.FriendRequestStatusEnum.ACCEPTED,
-                $or: [
-                    { senderId: (0, objectId_1.toObjectId)(userId) },
-                    { receiverId: (0, objectId_1.toObjectId)(userId) }
-                ]
-            },
+            filter: this.buildAcceptedFriendsFilter(userId),
             page,
             size,
             options: {
@@ -448,6 +451,13 @@ class FriendRequestService {
             }
         });
         return friends;
+    }
+    async getAcceptedFriendIds(userId) {
+        const friendships = await this.friendRequestRepository.findAll({
+            filter: this.buildAcceptedFriendsFilter(userId.toString()),
+            projection: { senderId: 1, receiverId: 1 },
+        });
+        return (friendships || []).map((f) => f.senderId.toString() === userId.toString() ? f.receiverId : f.senderId);
     }
 }
 exports.FriendRequestService = FriendRequestService;

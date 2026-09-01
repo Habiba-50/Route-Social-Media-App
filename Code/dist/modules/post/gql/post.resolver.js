@@ -19,7 +19,6 @@ class PostResolver {
         await (0, middleware_1.GQLValidation)(post_validation_1.reactOnPostGQL, args);
         const { postId, react } = args;
         const result = await this.postService.reactPost({ postId }, { react }, user);
-        console.log(result);
         return { message: "Reacted on post", data: result };
     };
 }

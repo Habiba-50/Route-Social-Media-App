@@ -36,9 +36,7 @@ export const OneUserType: GraphQLObjectType = new GraphQLObjectType({
              username: { type: GraphQLString },
              email: { type: new GraphQLNonNull(GraphQLString) },
              password: { type: new GraphQLNonNull(GraphQLString) },
-                   
-             friends: { type: new GraphQLList(OneUserType) },
-                   
+                                      
              phone: { type: GraphQLString },
              profilePicture: { type: GraphQLString },
              profileCoveredPictures: { type: new GraphQLList(GraphQLString) },

@@ -7,15 +7,18 @@ import { ChatEnum } from "../../common/enums";
 import { UserRepository } from "../../DB/repository/user.repository";
 import { s3Service } from "../../common/services"; 
 import { randomUUID } from "node:crypto";
+import { FriendRequestService } from "../friendRequest";
 
 export class ChatService {
     private chatRepository: ChatRepository
     private userRepository: UserRepository
     private s3Service: typeof s3Service
+    private friendRequestService: FriendRequestService
     constructor() {
         this.chatRepository = new ChatRepository()
         this.userRepository = new UserRepository()
         this.s3Service = s3Service
+        this.friendRequestService = new FriendRequestService()
     }
 
     // --------------------------- Get Chat -----------------------------------
@@ -98,23 +101,36 @@ export class ChatService {
         
     }
 
-    // --------------------------- Create Chating Group -----------------------------------
-    async createChattingGroup(body: { groupName: string, participantsIds: string[] | Types.ObjectId[] }, user: HydratedDocument<IUser>, file?: Express.Multer.File,): Promise<IChat | undefined>{
+    // --------------------------- Create Group Chat -----------------------------------
+    async createGroupChat(body: { groupName: string, participantsIds: string[] | Types.ObjectId[] }, user: HydratedDocument<IUser>, file?: Express.Multer.File,): Promise<IChat | undefined>{
     
         const participantsIds = [... new Set(body.participantsIds.map((id) => toObjectId(id as string)))]
-        // To get a unique list of users and to check if they are friends with the user
+        // To get a unique list of users 
         console.log("Current user:", user._id.toString());
         console.log("Participants:", participantsIds.map(id => id.toString()));
 
-        const users = await this.userRepository.findAll({ filter: { _id: { $in: participantsIds }, friends: { $in: [user._id] } } })
-        // console.log("friends",users)
-        
-        console.log("participantsIds length:", participantsIds.length);
-        console.log("users length:", users?.length);
-        if(users?.length !== participantsIds.length){
+        // check if all participants exist in DB ( not deleted )
+        const users = await this.userRepository.findAll({
+            filter: { _id: { $in: participantsIds }, deletedAt: { $exists: false } }
+        });
+        if (users?.length !== participantsIds.length) {
+            throw new NotFoundException("Some participants no longer exist");
+        }
+
+        // Check if all participants are friends ( with the creator )
+        const friendIds = await this.friendRequestService.getAcceptedFriendIds(user._id);
+        const friendIdSet = new Set(friendIds.map((id) => id.toString()));
+
+        const allParticipantsAreFriends = participantsIds.every((id) =>
+            friendIdSet.has(id.toString())
+        );
+
+        if (!allParticipantsAreFriends) {
             throw new NotFoundException("Some participants are not friends")
         }
-        
+
+
+        // Upload group icon if provided
         let group_image: string | undefined;
         const roomId = randomUUID()
         const path = `chat/group/${roomId}`
@@ -127,6 +143,7 @@ export class ChatService {
         
         }
         
+        // Create the group chat
         const chatingGroup = await this.chatRepository.create({
         data: {
             participants: [...participantsIds , user._id],

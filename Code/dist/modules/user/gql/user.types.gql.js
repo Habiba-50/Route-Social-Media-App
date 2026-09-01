@@ -33,7 +33,6 @@ exports.OneUserType = new graphql_1.GraphQLObjectType({
         username: { type: graphql_1.GraphQLString },
         email: { type: new graphql_1.GraphQLNonNull(graphql_1.GraphQLString) },
         password: { type: new graphql_1.GraphQLNonNull(graphql_1.GraphQLString) },
-        friends: { type: new graphql_1.GraphQLList(exports.OneUserType) },
         phone: { type: graphql_1.GraphQLString },
         profilePicture: { type: graphql_1.GraphQLString },
         profileCoveredPictures: { type: new graphql_1.GraphQLList(graphql_1.GraphQLString) },

@@ -23,11 +23,6 @@ class UserService {
     async profile(user) {
         const profile = await this.userRepository.findOne({
             filter: { _id: user._id },
-            options: {
-                populate: [
-                    { path: "friends", model: "User" },
-                ]
-            }
         });
         const groups = await this.chatRepository.findAll({
             filter: { participants: { $in: [user._id] }, type: enums_1.ChatEnum.OVM },

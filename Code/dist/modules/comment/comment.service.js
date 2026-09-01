@@ -29,7 +29,7 @@ class CommentService {
         const post = await this.postRepository.findOne({
             filter: {
                 _id: postId,
-                $or: (0, post_1.getAvailability)(user),
+                $or: await (0, post_1.getAvailability)(user),
             },
         });
         if (!post)
@@ -106,7 +106,7 @@ class CommentService {
                     {
                         path: "postId",
                         match: {
-                            $or: (0, post_1.getAvailability)(user),
+                            $or: await (0, post_1.getAvailability)(user),
                         }
                     }
                 ]
@@ -226,7 +226,7 @@ class CommentService {
                     {
                         path: "postId",
                         match: {
-                            $or: (0, post_1.getAvailability)(user),
+                            $or: await (0, post_1.getAvailability)(user),
                         }
                     }
                 ],
@@ -316,7 +316,7 @@ class CommentService {
                     {
                         path: "postId",
                         match: {
-                            $or: (0, post_1.getAvailability)(user),
+                            $or: await (0, post_1.getAvailability)(user),
                         }
                     }
                 ]
@@ -343,7 +343,7 @@ class CommentService {
                     {
                         path: "postId",
                         match: {
-                            $or: (0, post_1.getAvailability)(user),
+                            $or: await (0, post_1.getAvailability)(user),
                         }
                     }
                 ]
@@ -358,7 +358,7 @@ class CommentService {
             filter: {
                 _id: (0, objectId_1.toObjectId)(commentId),
                 postId: (0, objectId_1.toObjectId)(postId),
-                $or: (0, post_1.getAvailability)(user),
+                $or: await (0, post_1.getAvailability)(user),
             },
             update: {
                 ...(Number(react) > 0
@@ -403,7 +403,7 @@ class CommentService {
                 _id: (0, objectId_1.toObjectId)(replyId),
                 postId: (0, objectId_1.toObjectId)(postId),
                 commentId: (0, objectId_1.toObjectId)(commentId),
-                $or: (0, post_1.getAvailability)(user),
+                $or: await (0, post_1.getAvailability)(user),
             },
             update: {
                 ...(Number(react) > 0
@@ -473,7 +473,7 @@ class CommentService {
                     {
                         path: "postId",
                         match: {
-                            $or: (0, post_1.getAvailability)(user),
+                            $or: await (0, post_1.getAvailability)(user),
                         }
                     }
                 ]
@@ -494,7 +494,7 @@ class CommentService {
             filter: {
                 postId: (0, objectId_1.toObjectId)(postId),
                 createdBy: user._id,
-                $or: (0, post_1.getAvailability)(user),
+                $or: await (0, post_1.getAvailability)(user),
             },
         });
         return { message: "Comments deleted successfully" };

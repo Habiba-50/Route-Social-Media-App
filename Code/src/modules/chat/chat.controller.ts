@@ -42,7 +42,7 @@ router.post(
     authentication(),
     cloudFileUpload({validation : fileFieldValidation.image}).single("attachment"),
     async (req: Request, res: Response, next: NextFunction) => {
-        const data = await chatService.createChattingGroup(
+        const data = await chatService.createGroupChat(
             req.body,
             req.user,
             req.file as Express.Multer.File

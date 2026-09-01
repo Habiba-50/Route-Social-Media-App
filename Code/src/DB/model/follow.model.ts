@@ -19,7 +19,9 @@ const followSchema = new Schema<IFollow>({
     }
 }, { 
     timestamps: true, 
-    collection: 'SOCIAL_MEDIA_APP_FOLLOWS'
+    collection: 'SOCIAL_MEDIA_APP_FOLLOWS',
+    strict: true, 
+    strictQuery: true
  });
 
 followSchema.index(

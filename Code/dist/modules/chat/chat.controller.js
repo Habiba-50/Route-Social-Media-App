@@ -15,7 +15,7 @@ router.get("/group/:groupId", (0, middleware_1.authentication)(), async (req, re
     return (0, response_1.successResponse)({ res, statusCode: 200, data });
 });
 router.post("/group", (0, middleware_1.authentication)(), (0, multer_1.cloudFileUpload)({ validation: multer_1.fileFieldValidation.image }).single("attachment"), async (req, res, next) => {
-    const data = await chat_service_1.chatService.createChattingGroup(req.body, req.user, req.file);
+    const data = await chat_service_1.chatService.createGroupChat(req.body, req.user, req.file);
     return (0, response_1.successResponse)({ res, statusCode: 200, data });
 });
 exports.default = router;

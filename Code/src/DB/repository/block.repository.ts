@@ -3,11 +3,10 @@ import { BlockModel } from "../model";
 import { DatabaseRepository } from "./base.repository";
 
 
-export class blockRepository extends DatabaseRepository <IBlock>{
+export class BlockRepository extends DatabaseRepository<IBlock> {
 
-    constructor(){
+    constructor() {
         super(BlockModel)
     }
-}
 
-    
+}

@@ -8,14 +8,17 @@ const enums_1 = require("../../common/enums");
 const user_repository_1 = require("../../DB/repository/user.repository");
 const services_1 = require("../../common/services");
 const node_crypto_1 = require("node:crypto");
+const friendRequest_1 = require("../friendRequest");
 class ChatService {
     chatRepository;
     userRepository;
     s3Service;
+    friendRequestService;
     constructor() {
         this.chatRepository = new chat_repository_1.ChatRepository();
         this.userRepository = new user_repository_1.UserRepository();
         this.s3Service = services_1.s3Service;
+        this.friendRequestService = friendRequest_1.friendRequestService;
     }
     async getChat(participantId, { page, size } = {}, user) {
         const chat = await this.chatRepository.findOneChat({
@@ -72,14 +75,20 @@ class ChatService {
             });
         }
     }
-    async createChattingGroup(body, user, file) {
+    async createGroupChat(body, user, file) {
         const participantsIds = [...new Set(body.participantsIds.map((id) => (0, objectId_1.toObjectId)(id)))];
         console.log("Current user:", user._id.toString());
         console.log("Participants:", participantsIds.map(id => id.toString()));
-        const users = await this.userRepository.findAll({ filter: { _id: { $in: participantsIds }, friends: { $in: [user._id] } } });
-        console.log("participantsIds length:", participantsIds.length);
-        console.log("users length:", users?.length);
+        const users = await this.userRepository.findAll({
+            filter: { _id: { $in: participantsIds }, deletedAt: { $exists: false } }
+        });
         if (users?.length !== participantsIds.length) {
+            throw new exceptions_1.NotFoundException("Some participants no longer exist");
+        }
+        const friendIds = await this.friendRequestService.getAcceptedFriendIds(user._id);
+        const friendIdSet = new Set(friendIds.map((id) => id.toString()));
+        const allParticipantsAreFriends = participantsIds.every((id) => friendIdSet.has(id.toString()));
+        if (!allParticipantsAreFriends) {
             throw new exceptions_1.NotFoundException("Some participants are not friends");
         }
         let group_image;

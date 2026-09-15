@@ -22,3 +22,4 @@ __exportStar(require("./comment.interface"), exports);
 __exportStar(require("./chat.interface"), exports);
 __exportStar(require("./follow.interface"), exports);
 __exportStar(require("./friendRequest.interface"), exports);
+__exportStar(require("./block.interface"), exports);

@@ -18,7 +18,9 @@ const followSchema = new mongoose_1.Schema({
     }
 }, {
     timestamps: true,
-    collection: 'SOCIAL_MEDIA_APP_FOLLOWS'
+    collection: 'SOCIAL_MEDIA_APP_FOLLOWS',
+    strict: true,
+    strictQuery: true
 });
 followSchema.index({
     followerId: 1,

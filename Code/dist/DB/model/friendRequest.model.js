@@ -23,7 +23,9 @@ const friendRequestSchema = new mongoose_1.Schema({
     }
 }, {
     timestamps: true,
-    collection: 'SOCIAL_MEDIA_APP_FRIEND_REQUESTS'
+    collection: 'SOCIAL_MEDIA_APP_FRIEND_REQUESTS',
+    strict: true,
+    strictQuery: true
 });
 friendRequestSchema.index({ recieverId: 1, status: 1 });
 friendRequestSchema.index({ senderId: 1, status: 1 });

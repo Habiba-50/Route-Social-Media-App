@@ -8,5 +8,5 @@ export enum NotificationType {
     POST = "POST",
     FOLLOW = "FOLLOW",
     FRIEND_REQUEST = "FRIEND_REQUEST",
-    
+    REPOST = "REPOST",
 }

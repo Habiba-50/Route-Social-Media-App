@@ -1,7 +1,7 @@
 import { HydratedDocument, startSession, Types } from "mongoose";
 import { FriendRequestStatusEnum, NotificationType } from "../../common/enums";
 import { BadRequestException, NotFoundException } from "../../common/exceptions";
-import { FriendRequestRepository, UserRepository } from "../../DB/repository";
+import { BlockRepository, FriendRequestRepository, UserRepository } from "../../DB/repository";
 import { IFriendRequest, IUser } from "../../common/interfaces";
 import { toObjectId } from "../../common/utils/objectId";
 import { NotificationModuleService } from "../notification";
@@ -15,6 +15,7 @@ export class FriendRequestService {
     private readonly notificationModuleService: NotificationModuleService
     private readonly notificationService: NotificationService
     private readonly redisService: RedisService
+    private readonly blockRepository: BlockRepository
 
     constructor() {
         this.friendRequestRepository = new FriendRequestRepository()
@@ -22,6 +23,7 @@ export class FriendRequestService {
         this.notificationModuleService = new NotificationModuleService()
         this.notificationService = new NotificationService()
         this.redisService = redisService
+        this.blockRepository = new BlockRepository()
     }
 
     // -------------------------- Send Request ✅✅ --------------------------------
@@ -45,6 +47,21 @@ export class FriendRequestService {
         if (!receiverUser) {
             throw new NotFoundException("Receiver user not found")
         }
+
+        // prevent user from sending request to blocked user 
+        const isBlocked = await this.blockRepository.findOne({
+            filter: {
+                $or: [
+                    { blockerId: toObjectId(userId), blockedId: toObjectId(receiverId) },
+                    { blockerId: toObjectId(receiverId), blockedId: toObjectId(userId) }
+                ],
+                deletedAt: { $exists: false },
+            }
+        })
+        if (isBlocked) {
+            throw new BadRequestException("You can't send this user a friend request")
+        }
+
 
 
         const isFriends = await this.friendRequestRepository.findOne({
@@ -639,6 +656,7 @@ export class FriendRequestService {
     private buildAcceptedFriendsFilter(userId: string) {
         return {
             status: FriendRequestStatusEnum.ACCEPTED,
+            deletedAt: { $exists: false },
             $or: [
                 { senderId: toObjectId(userId) },
                 { receiverId: toObjectId(userId) }

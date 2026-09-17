@@ -7,3 +7,4 @@ export * from "./realtime";
 export * from "./follow"
 export * from "./friendRequest"
 export * from "./block"
+export * from "./repost"

@@ -14,12 +14,14 @@ class FriendRequestService {
     notificationModuleService;
     notificationService;
     redisService;
+    blockRepository;
     constructor() {
         this.friendRequestRepository = new repository_1.FriendRequestRepository();
         this.userRepository = new repository_1.UserRepository();
         this.notificationModuleService = new notification_1.NotificationModuleService();
         this.notificationService = new services_1.NotificationService();
         this.redisService = services_1.redisService;
+        this.blockRepository = new repository_1.BlockRepository();
     }
     async sendFriendRequest(user, receiverId) {
         const userId = user._id.toString();
@@ -34,6 +36,18 @@ class FriendRequestService {
         });
         if (!receiverUser) {
             throw new exceptions_1.NotFoundException("Receiver user not found");
+        }
+        const isBlocked = await this.blockRepository.findOne({
+            filter: {
+                $or: [
+                    { blockerId: (0, objectId_1.toObjectId)(userId), blockedId: (0, objectId_1.toObjectId)(receiverId) },
+                    { blockerId: (0, objectId_1.toObjectId)(receiverId), blockedId: (0, objectId_1.toObjectId)(userId) }
+                ],
+                deletedAt: { $exists: false },
+            }
+        });
+        if (isBlocked) {
+            throw new exceptions_1.BadRequestException("You can't send this user a friend request");
         }
         const isFriends = await this.friendRequestRepository.findOne({
             filter: {
@@ -425,6 +439,7 @@ class FriendRequestService {
     buildAcceptedFriendsFilter(userId) {
         return {
             status: enums_1.FriendRequestStatusEnum.ACCEPTED,
+            deletedAt: { $exists: false },
             $or: [
                 { senderId: (0, objectId_1.toObjectId)(userId) },
                 { receiverId: (0, objectId_1.toObjectId)(userId) }

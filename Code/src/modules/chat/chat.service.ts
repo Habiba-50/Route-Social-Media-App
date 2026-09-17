@@ -106,8 +106,8 @@ export class ChatService {
     
         const participantsIds = [... new Set(body.participantsIds.map((id) => toObjectId(id as string)))]
         // To get a unique list of users 
-        console.log("Current user:", user._id.toString());
-        console.log("Participants:", participantsIds.map(id => id.toString()));
+        // console.log("Current user:", user._id.toString());
+        // console.log("Participants:", participantsIds.map(id => id.toString()));
 
         // check if all participants exist in DB ( not deleted )
         const users = await this.userRepository.findAll({

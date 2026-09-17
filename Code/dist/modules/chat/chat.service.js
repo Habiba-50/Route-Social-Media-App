@@ -77,8 +77,6 @@ class ChatService {
     }
     async createGroupChat(body, user, file) {
         const participantsIds = [...new Set(body.participantsIds.map((id) => (0, objectId_1.toObjectId)(id)))];
-        console.log("Current user:", user._id.toString());
-        console.log("Participants:", participantsIds.map(id => id.toString()));
         const users = await this.userRepository.findAll({
             filter: { _id: { $in: participantsIds }, deletedAt: { $exists: false } }
         });

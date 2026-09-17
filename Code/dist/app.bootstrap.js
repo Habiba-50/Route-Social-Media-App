@@ -33,6 +33,7 @@ const bootstrap = async () => {
     app.use("/follow", modules_1.followRouter);
     app.use("/friend-request", modules_1.friendRequestController);
     app.use("/block", modules_1.blockRouter);
+    app.use("/repost", modules_1.repostRouter);
     app.get("/uploads/*path", async (req, res, next) => {
         const { download, filename } = req.query;
         const { path } = req.params;

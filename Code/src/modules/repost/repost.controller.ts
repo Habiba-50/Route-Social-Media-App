@@ -41,7 +41,7 @@ router.delete("/:repostId", authentication(), validation(validators.undoRepostVa
 
 // --------------------------------------------------------
 // Get a user's reposts (for their profile)
-router.get("/my-reposts", authentication(), async (req, res, next): Promise<any> => {
+router.get("/my-reposts", authentication(), validation(validators.paginationValidation) , async (req, res, next): Promise<any> => {
     try {
         const result = await repostService.getUserReposts(req.user, {
             page: Number(req.query?.page),
@@ -61,7 +61,7 @@ router.get("/my-reposts", authentication(), async (req, res, next): Promise<any>
 // --------------------------------------------------------
 // Get reposts of a specific post(who reposted it)
 
-router.get("/:postId", authentication(), async (req, res, next): Promise<any> => {
+router.get("/:postId", authentication(), validation(validators.getRepostsOfPostValidation) ,async (req, res, next): Promise<any> => {
     try {
         const result = await repostService.getRepostsOfPost(req.params.postId as string, {
             page: Number(req.query?.page),

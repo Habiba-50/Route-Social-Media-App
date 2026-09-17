@@ -1,6 +1,6 @@
 import mongoose, { ClientSession, HydratedDocument, Types } from "mongoose";
 import { BlockRepository, FollowRepository, FriendRequestRepository, UserRepository } from "../../DB/repository";
-import { IBlock, IPaginate } from "../../common/interfaces";
+import { IBlock, IFollow, IPaginate } from "../../common/interfaces";
 import { BadRequestException, NotFoundException } from "../../common/exceptions";
 import { toObjectId } from "../../common/utils/objectId";
 import { FriendRequestStatusEnum } from "../../common/enums";
@@ -95,7 +95,7 @@ export class BlockService {
             }
         });
 
-        for (const follow of follows || []) {
+        for (const follow of (follows || []) as (HydratedDocument<IFollow> & { _id: Types.ObjectId })[]) {
             await this.followRepository.findOneAndUpdate({
                 filter: { _id: follow._id },
                 update: { isDeleted: true },

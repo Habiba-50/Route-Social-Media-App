@@ -30,3 +30,10 @@ export const getRepostsOfPostValidation = {
         size: z.string().optional().default("10")
     })
 }
+
+export const paginationValidation = {
+    query: z.strictObject({
+        page: z.string().optional().default("1"),
+        size: z.string().optional().default("10")
+    })
+}

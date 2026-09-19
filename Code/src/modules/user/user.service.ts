@@ -1,5 +1,5 @@
 import { HydratedDocument, Types } from "mongoose";
-import { IUser } from "../../common/interfaces";
+import { IPaginate, IUser } from "../../common/interfaces";
 import { JwtPayload } from "jsonwebtoken";
 import { ACCESS_TOKEN_EXPIRY, REFRESH_TOKEN_EXPIRY } from "../../config/config";
 import { BadRequestException, conflictException } from "../../common/exceptions";
@@ -7,6 +7,7 @@ import { RedisService, S3Service, TokenService } from "../../common/services";
 import { ChatEnum, LogoutEnum, StorageApproachEnum, UploadApproachEnum } from "../../common/enums";
 import { UserRepository } from "../../DB/repository";
 import { ChatRepository } from "../../DB/repository/chat.repository";
+import { BlockService } from "../block/block.service";
 
 
 
@@ -16,6 +17,7 @@ export class UserService {
   private readonly redisService: RedisService;
   private readonly s3: S3Service
   private readonly chatRepository: ChatRepository
+  private readonly blockService: BlockService
 
   constructor() {
     this.userRepository = new UserRepository()
@@ -23,6 +25,7 @@ export class UserService {
     this.redisService = new RedisService();
     this.s3 = new S3Service()
     this.chatRepository = new ChatRepository()
+    this.blockService = new BlockService()
   }
 
   // ------------------------------------ Get Profile -----------------------------------------------
@@ -266,6 +269,7 @@ export class UserService {
 
   }
 
+
   // ------------------------------------------Restore User-------------------------------------------
   public async restoreUser(userId: string , user: HydratedDocument<IUser>): Promise<boolean> {
 
@@ -287,6 +291,7 @@ export class UserService {
     })
     return true
   }
+
 
   // ------------------------------------------Get All Active Users-------------------------------------------
   public async getAllActiveUsers(): Promise<any> {
@@ -354,6 +359,41 @@ export class UserService {
 
 
   }
+
+  // ------------------------------------------- Search Users -------------------------------------------
+  public async searchUsers(
+    user: HydratedDocument<IUser>,
+    query: { search: string, page?: number, size?: number }
+  ): Promise<IPaginate<IUser>> {
+    const { search, page, size } = query;
+
+    const blockedIds = await this.blockService.getBlockedUserIds(user._id as Types.ObjectId);
+
+    const result = await this.userRepository.paginate({
+      filter: {
+        _id: { $ne: user._id, $nin: blockedIds },
+        deletedAt: { $exists: false },
+        $or: [
+          { firstName: { $regex: search, $options: "i" } },
+          { lastName: { $regex: search, $options: "i" } }
+        ]
+      },
+      projection: { _id: 1, firstName: 1, lastName: 1, profileImage: 1 },
+      page,
+      size
+    });
+
+    return result;
+  }
 }
+
+// $eq	=> equal
+// $ne	=> not equal
+// $in	=> in array
+// $nin	=> not in array
+// $gt	=> greater than
+// $lt	=> less than
+// $gte	=> greater than or equal
+// $lte	=> less than or equal
 
 export default new UserService()

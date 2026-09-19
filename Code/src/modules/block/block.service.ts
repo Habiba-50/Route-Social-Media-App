@@ -278,6 +278,26 @@ export class BlockService {
     }
     
 
+
+    // -------------------------- getBlockedUserIds ✅ --------------------------
+    
+    public async getBlockedUserIds(userId: Types.ObjectId): Promise<Types.ObjectId[]> {
+        const blocks = await this.blockRepository.findAll({
+            filter: {
+                deletedAt: { $exists: false },
+                $or: [
+                    { blockerId: userId },
+                    { blockedId: userId }
+                ]
+            },
+            projection: { blockerId: 1, blockedId: 1 }
+        });
+
+        return (blocks || []).map((b) =>
+            b.blockerId.toString() === userId.toString() ? b.blockedId : b.blockerId
+        );
+    }
+
 }
 
 

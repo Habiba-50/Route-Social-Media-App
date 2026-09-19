@@ -9,6 +9,6 @@ export const profileGQL = z.strictObject({
 
 export const searchUserValidation = {
     query: paginationValidationSchema.query.extend({
-        search: z.string().max(10, "Search query must be less than 100 character").optional(),
+        search: z.string().min(1, "Search query must be at least 1 character long").max(10, "Search query must be less than 100 character").optional(),
     })
 };

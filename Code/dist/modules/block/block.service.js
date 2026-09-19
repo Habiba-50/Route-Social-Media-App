@@ -198,6 +198,19 @@ class BlockService {
         });
         return !!isBlocked;
     }
+    async getBlockedUserIds(userId) {
+        const blocks = await this.blockRepository.findAll({
+            filter: {
+                deletedAt: { $exists: false },
+                $or: [
+                    { blockerId: userId },
+                    { blockedId: userId }
+                ]
+            },
+            projection: { blockerId: 1, blockedId: 1 }
+        });
+        return (blocks || []).map((b) => b.blockerId.toString() === userId.toString() ? b.blockedId : b.blockerId);
+    }
 }
 exports.BlockService = BlockService;
 exports.blockService = new BlockService();

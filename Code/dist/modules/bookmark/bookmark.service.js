@@ -23,9 +23,6 @@ class BookmarkService {
         if (!post) {
             throw new exceptions_1.NotFoundException("Post not found");
         }
-        if (post.createdBy.toString() === user._id.toString()) {
-            throw new exceptions_1.BadRequestException("You can not save your own post");
-        }
     }
     async savePost(user, postId) {
         await this.checkPostExistence(postId, user);

@@ -7,18 +7,21 @@ const services_1 = require("../../common/services");
 const enums_1 = require("../../common/enums");
 const repository_1 = require("../../DB/repository");
 const chat_repository_1 = require("../../DB/repository/chat.repository");
+const block_service_1 = require("../block/block.service");
 class UserService {
     userRepository;
     tokenService;
     redisService;
     s3;
     chatRepository;
+    blockService;
     constructor() {
         this.userRepository = new repository_1.UserRepository();
         this.tokenService = new services_1.TokenService();
         this.redisService = new services_1.RedisService();
         this.s3 = new services_1.S3Service();
         this.chatRepository = new chat_repository_1.ChatRepository();
+        this.blockService = new block_service_1.BlockService();
     }
     async profile(user) {
         const profile = await this.userRepository.findOne({
@@ -191,6 +194,24 @@ class UserService {
         else {
             throw new exceptions_1.conflictException("User is not deleted, pass force=true to delete user permanently");
         }
+    }
+    async searchUsers(user, query) {
+        const { search, page, size } = query;
+        const blockedIds = await this.blockService.getBlockedUserIds(user._id);
+        const result = await this.userRepository.paginate({
+            filter: {
+                _id: { $ne: user._id, $nin: blockedIds },
+                deletedAt: { $exists: false },
+                $or: [
+                    { firstName: { $regex: search, $options: "i" } },
+                    { lastName: { $regex: search, $options: "i" } }
+                ]
+            },
+            projection: { _id: 1, firstName: 1, lastName: 1, profileImage: 1 },
+            page,
+            size
+        });
+        return result;
     }
 }
 exports.UserService = UserService;

@@ -1,6 +1,6 @@
 import type { NextFunction, Response, Request } from "express";
 import { Router } from "express";
-import { authentication , authorization } from "../../middleware";
+import { authentication , authorization, validation } from "../../middleware";
 import { successResponse } from "../../common/response";
 import userService from "./user.service";
 import { userAuthorization } from "./user.authorization";
@@ -9,6 +9,7 @@ import { cloudFileUpload, fileFieldValidation } from "../../common/utils/multer"
 import { IUser } from "../../common/interfaces";
 import { HydratedDocument } from "mongoose";
 import { chatRouter } from "../chat";
+import * as validators from  "./user.validation"
 
 
 
@@ -158,5 +159,17 @@ router.delete("/destroy/:userId/{permanent}",
     }
 )
 
+
+// ---------------------------------- Search Users---------------------------------------
+
+router.get("/searchUser",
+    authentication(),
+    validation(validators.searchUserValidation),
+    async (req: Request, res: Response, next: NextFunction) => {
+        const {search , page , size} = req.query;
+        const data = await userService.searchUsers(req.user , {search:search as string , page:Number(page) , size:Number(size)})
+        return successResponse({res , statusCode:200 , data})
+    }
+)
 
 export default router;

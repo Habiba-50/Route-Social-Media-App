@@ -65,7 +65,7 @@ exports.router.delete("/:repostId", (0, middleware_1.authentication)(), (0, midd
         next(error);
     }
 });
-exports.router.get("/my-reposts", (0, middleware_1.authentication)(), async (req, res, next) => {
+exports.router.get("/my-reposts", (0, middleware_1.authentication)(), (0, middleware_1.validation)(validators.paginationValidation), async (req, res, next) => {
     try {
         const result = await repost_service_1.repostService.getUserReposts(req.user, {
             page: Number(req.query?.page),
@@ -81,7 +81,7 @@ exports.router.get("/my-reposts", (0, middleware_1.authentication)(), async (req
         next(error);
     }
 });
-exports.router.get("/:postId", (0, middleware_1.authentication)(), async (req, res, next) => {
+exports.router.get("/:postId", (0, middleware_1.authentication)(), (0, middleware_1.validation)(validators.getRepostsOfPostValidation), async (req, res, next) => {
     try {
         const result = await repost_service_1.repostService.getRepostsOfPost(req.params.postId, {
             page: Number(req.query?.page),

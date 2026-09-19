@@ -23,3 +23,4 @@ __exportStar(require("./friendRequest.repository"), exports);
 __exportStar(require("./follow.repository"), exports);
 __exportStar(require("./block.repository"), exports);
 __exportStar(require("./repost.repository"), exports);
+__exportStar(require("./bookmark.repository"), exports);

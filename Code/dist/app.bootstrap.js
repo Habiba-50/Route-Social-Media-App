@@ -34,6 +34,7 @@ const bootstrap = async () => {
     app.use("/friend-request", modules_1.friendRequestController);
     app.use("/block", modules_1.blockRouter);
     app.use("/repost", modules_1.repostRouter);
+    app.use("/bookmark", modules_1.bookmarkRouter);
     app.get("/uploads/*path", async (req, res, next) => {
         const { download, filename } = req.query;
         const { path } = req.params;

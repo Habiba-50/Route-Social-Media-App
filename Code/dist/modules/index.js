@@ -24,3 +24,4 @@ __exportStar(require("./follow"), exports);
 __exportStar(require("./friendRequest"), exports);
 __exportStar(require("./block"), exports);
 __exportStar(require("./repost"), exports);
+__exportStar(require("./bookmark"), exports);

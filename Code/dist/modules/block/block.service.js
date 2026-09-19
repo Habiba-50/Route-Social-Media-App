@@ -73,7 +73,7 @@ class BlockService {
                 isDeleted: { $exists: false }
             }
         });
-        for (const follow of follows || []) {
+        for (const follow of (follows || [])) {
             await this.followRepository.findOneAndUpdate({
                 filter: { _id: follow._id },
                 update: { isDeleted: true },

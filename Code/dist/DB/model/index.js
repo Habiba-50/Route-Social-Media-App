@@ -23,3 +23,4 @@ __exportStar(require("./friendRequest.model"), exports);
 __exportStar(require("./follow.model"), exports);
 __exportStar(require("./block.model"), exports);
 __exportStar(require("./repost.model"), exports);
+__exportStar(require("./bookmark.model"), exports);

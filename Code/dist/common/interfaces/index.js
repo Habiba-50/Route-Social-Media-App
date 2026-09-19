@@ -24,3 +24,4 @@ __exportStar(require("./follow.interface"), exports);
 __exportStar(require("./friendRequest.interface"), exports);
 __exportStar(require("./block.interface"), exports);
 __exportStar(require("./repost.interface"), exports);
+__exportStar(require("./bookmark.interface"), exports);
